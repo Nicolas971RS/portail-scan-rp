@@ -391,6 +391,9 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
 .scan-pick-card .spc-numero{font-size:16px;font-weight:700;}
 .scan-pick-card button{width:100%;margin-top:12px;padding:11px;border:none;border-radius:var(--radius-sm);background:var(--violet);color:#fff;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;}
 .scan-pick-card button:hover{background:var(--violet-dark);}
+.checkbox-label{display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:14px;color:var(--text);font-weight:600;}
+.checkbox-label input[type="checkbox"]{width:20px;height:20px;margin-top:1px;accent-color:var(--violet);flex-shrink:0;cursor:pointer;}
+.checkbox-label small{display:block;font-size:12px;font-weight:400;color:var(--text-muted);margin-top:2px;}
 </style>
 </head>
 <body>
@@ -447,6 +450,13 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
               <div class="pill" data-vendeur="Fritz">Fritz</div>
               <div class="pill" data-vendeur="Fabrice">Fabrice</div>
             </div>
+          </div>
+
+          <div class="field" id="fieldPreparation">
+            <label class="checkbox-label">
+              <input type="checkbox" id="checkPreparation">
+              <span>Préparation à l'avance <small>(le magasinier préparera le BL plus tard, sans urgence de chargement immédiat)</small></span>
+            </label>
           </div>
 
           <button class="submit" id="btnSubmit" disabled>Émettre le BL</button>
@@ -578,6 +588,8 @@ const elInputClient = document.getElementById('inputClient');
 const elAcResults = document.getElementById('acResults');
 const elClientHelper = document.getElementById('clientHelper');
 const elBtnSubmit = document.getElementById('btnSubmit');
+const elCheckPreparation = document.getElementById('checkPreparation');
+const elFieldPreparation = document.getElementById('fieldPreparation');
 const elErrorBanner = document.getElementById('errorBanner');
 const elFormWrap = document.getElementById('formWrap');
 const elSuccessView = document.getElementById('successView');
@@ -616,11 +628,14 @@ document.querySelectorAll('.type-card').forEach(card => {
       elInputClient.value = '';
       elLabelNumero.innerHTML = 'Référence de session <span class="req">*</span>';
       if (!elNumero.value.trim()) elNumero.value = generateInventoryRef();
+      elFieldPreparation.style.display = 'none';
+      elCheckPreparation.checked = false;
     } else {
       elFieldClient.style.display = 'block';
       elLabelNumero.innerHTML = 'Numéro de BL <span class="req">*</span>';
       if (elNumero.value.startsWith('INV-')) elNumero.value = '';
       if (!clientsLoaded) loadClients();
+      elFieldPreparation.style.display = 'block';
     }
     validateForm();
   });
@@ -707,6 +722,7 @@ elBtnSubmit.addEventListener('click', () => {
     Vendeur_Emetteur: selectedVendeur,
     Date_Emission: todayISONoon(),
     Statut: "BL Émis",
+    Preparation_Avance: selectedType === 'Livraison client' ? elCheckPreparation.checked : false,
     _token: CONFIG.TOKEN
   };
 
@@ -722,6 +738,7 @@ elBtnSubmit.addEventListener('click', () => {
       <div><span>Référence</span><span>${numero}</span></div>
       ${client ? `<div><span>Client</span><span>${client}</span></div>` : ''}
       <div><span>Vendeur</span><span>${selectedVendeur}</span></div>
+      ${payload.Preparation_Avance ? `<div><span>Préparation</span><span>À l'avance</span></div>` : ''}
     `;
     elFormWrap.classList.add('hidden');
     elSuccessView.classList.add('show');
@@ -744,6 +761,8 @@ document.getElementById('btnReset').addEventListener('click', () => {
   document.querySelectorAll('.type-card').forEach(c => c.classList.remove('selected'));
   document.querySelectorAll('.pill[data-vendeur]').forEach(p => p.classList.remove('selected'));
   elFieldClient.style.display = 'block';
+  elCheckPreparation.checked = false;
+  elFieldPreparation.style.display = 'block';
   elLabelNumero.innerHTML = 'Numéro de BL <span class="req">*</span>';
   elFormWrap.classList.remove('hidden');
   elSuccessView.classList.remove('show');
