@@ -1234,7 +1234,7 @@ function renderScanLines(flashRef){
     const desCls = l.known ? 'sl-des' : 'sl-des unknown';
     const desTxt = l.known ? (l.designation || '—') : 'Référence non cataloguée';
     const attCell = isLiv
-      ? '<input class="att-input" type="number" min="0" inputmode="numeric" data-ref="' + escAttr(l.reference) + '" value="' + l.attendue + '">'
+      ? '<input class="att-input" type="number" min="0" inputmode="numeric" data-ref="' + escAttr(l.reference) + '" value="' + (l.attendue ? l.attendue : '') + '" placeholder="0">'
       : '<div class="mnum">' + l.attendue + '</div>';
     return '<div class="scan-line" data-ref="' + escAttr(l.reference) + '">'
       + '<div class="sl-ref">' + l.reference + '</div>'
