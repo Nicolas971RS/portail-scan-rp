@@ -387,6 +387,10 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
 .scan-line.flash{animation:lineFlash .7s ease-out;}
 @keyframes lineFlash{0%{background:var(--violet-soft);border-color:var(--violet);}100%{background:var(--card);border-color:var(--border);}}
 .scan-line .sl-ref{font-size:14px;font-weight:700;color:var(--text);}
+.scan-line .sl-top{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.scan-line .sl-delete{background:none;border:none;padding:4px;cursor:pointer;color:var(--text-muted);border-radius:6px;flex-shrink:0;display:flex;}
+.scan-line .sl-delete:hover{color:var(--danger);background:var(--danger-soft);}
+.scan-line .sl-delete svg{width:18px;height:18px;}
 .scan-line .sl-des{font-size:12px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
 .scan-line .sl-des.unknown{color:var(--danger);font-weight:600;}
 .scan-line .sl-metrics{display:flex;gap:8px;margin-top:10px;}
@@ -874,7 +878,7 @@ function renderSessions() {
 
   elSessionsList.innerHTML = waiting.map(s => {
     const type = choiceValue(s.Type_Operation);
-    const isLivraison = type === 'Livraison client';
+    const isLivraison = type.toLowerCase() === 'livraison client';
     const vendeur = choiceValue(s.Vendeur_Emetteur);
     const dateAff = (s.Date_Emission || '').slice(0, 10).split('-').reverse().join('/');
     const aPreparer = boolValue(s.Preparation_Avance);
@@ -1069,7 +1073,7 @@ function renderScanPicker(list){
   elScanPickerEmpty.style.display = 'none';
   elScanPickerList.innerHTML = list.map((s, i) => {
     const type = choiceValue(s.Type_Operation);
-    const isLiv = type === 'Livraison client';
+    const isLiv = type.toLowerCase() === 'livraison client';
     return '<div class="scan-pick-card">'
       + '<div class="spc-top"><span class="spc-numero">' + s.Numero_BL + '</span>'
       + '<span class="badge ' + (isLiv ? 'livraison' : 'inventaire') + '">' + type + '</span></div>'
@@ -1086,7 +1090,7 @@ function startSession(sess){
   activeLines = [];
   document.getElementById('scanSessionNumero').textContent = sess.numero;
   const badge = document.getElementById('scanSessionBadge');
-  const isLiv = sess.type === 'Livraison client';
+  const isLiv = (sess.type || '').toLowerCase() === 'livraison client';
   badge.textContent = sess.type;
   badge.className = 'badge ' + (isLiv ? 'livraison' : 'inventaire');
   document.getElementById('scanSessionSub').textContent =
@@ -1203,7 +1207,7 @@ function registerScan(rawCode){
       reference: code,
       designation: cat ? cat.designation : '',
       known: !!cat,
-      attendue: (activeSession.type === 'Inventaire physique') ? (cat ? cat.stock : 0) : 0,
+      attendue: ((activeSession.type || '').toLowerCase() === 'inventaire physique') ? (cat ? cat.stock : 0) : 0,
       scannee: 1
     };
     activeLines.unshift(line);
@@ -1226,8 +1230,8 @@ function updateStats(){
 
 function renderScanLines(flashRef){
   updateStats();
-  const isLiv = activeSession && activeSession.type === 'Livraison client';
-  const attLbl = (activeSession && activeSession.type === 'Inventaire physique') ? 'Stock théo.' : 'Attendu';
+  const isLiv = activeSession && (activeSession.type || '').toLowerCase() === 'livraison client';
+  const attLbl = (activeSession && (activeSession.type || '').toLowerCase() === 'inventaire physique') ? 'Stock théo.' : 'Attendu';
   elScanLines.innerHTML = activeLines.map(l => {
     const ecOk = l.ecart === 0;
     const ecTxt = l.ecart === 0 ? '0' : (l.ecart > 0 ? '+' + l.ecart : '' + l.ecart);
@@ -1237,7 +1241,10 @@ function renderScanLines(flashRef){
       ? '<input class="att-input" type="number" min="0" inputmode="numeric" data-ref="' + escAttr(l.reference) + '" value="' + (l.attendue ? l.attendue : '') + '" placeholder="0">'
       : '<div class="mnum">' + l.attendue + '</div>';
     return '<div class="scan-line" data-ref="' + escAttr(l.reference) + '">'
-      + '<div class="sl-ref">' + l.reference + '</div>'
+      + '<div class="sl-top"><div class="sl-ref">' + l.reference + '</div>'
+      +   '<button class="sl-delete" data-ref="' + escAttr(l.reference) + '" title="Supprimer cette ligne" aria-label="Supprimer cette ligne">'
+      +     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>'
+      +   '</button></div>'
       + '<div class="' + desCls + '">' + desTxt + '</div>'
       + '<div class="sl-metrics">'
       +   '<div class="m"><div class="mnum scanned">' + l.scannee + '</div><div class="mlbl">Scanné</div></div>'
@@ -1248,6 +1255,7 @@ function renderScanLines(flashRef){
   if (isLiv){
     elScanLines.querySelectorAll('input.att-input').forEach(inp => inp.addEventListener('input', onAttendueInput));
   }
+  elScanLines.querySelectorAll('button.sl-delete').forEach(btn => btn.addEventListener('click', onDeleteLine));
   if (flashRef){
     const el = elScanLines.querySelector('.scan-line[data-ref="' + cssEsc(flashRef) + '"]');
     if (el){ el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 700); }
@@ -1270,6 +1278,18 @@ function onAttendueInput(e){
   updateStats();
   clearTimeout(attTimers[ref]);
   attTimers[ref] = setTimeout(() => enqueueLinePost('set_attendue', line), 600);
+}
+
+function onDeleteLine(e){
+  const btn = e.currentTarget;
+  const ref = btn.dataset.ref;
+  const idx = activeLines.findIndex(l => l.reference === ref);
+  if (idx === -1) return;
+  const line = activeLines[idx];
+  if (!confirm('Supprimer la ligne ' + ref + ' ?\nÀ utiliser si cette référence a été scannée par erreur. Cette action est définitive.')) return;
+  activeLines.splice(idx, 1);
+  renderScanLines();
+  enqueueLinePost('delete', line);
 }
 
 function enqueueLinePost(action, line){
