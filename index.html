@@ -559,6 +559,7 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
         <div id="scanLines"></div>
 
         <button class="submit" id="btnCloturer" style="background:var(--navy);">Clôturer la session</button>
+        <button class="secondary" id="btnCloturePartielle" style="margin-top:10px;display:none;">Clôturer — reste à livrer</button>
         <button class="secondary" id="btnChangeSession" style="margin-top:10px;">Changer de session</button>
       </div>
 
@@ -980,6 +981,7 @@ const elScanStats = document.getElementById('scanStats');
 const elScanReaderMsg = document.getElementById('scanReaderMsg');
 const elScanManualInput = document.getElementById('scanManualInput');
 const elBtnCloturer = document.getElementById('btnCloturer');
+const elBtnCloturePartielle = document.getElementById('btnCloturePartielle');
 
 function num(v){ const n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
 function escAttr(s){ return (s || '').toString().replace(/"/g, '&quot;'); }
@@ -1095,6 +1097,7 @@ function startSession(sess){
   badge.className = 'badge ' + (isLiv ? 'livraison' : 'inventaire');
   document.getElementById('scanSessionSub').textContent =
     (isLiv && sess.client ? sess.client + ' · ' : '') + 'Magasinier : ' + (sess.magasinier || selectedMagasinier);
+  document.getElementById('btnCloturePartielle').style.display = isLiv ? 'block' : 'none';
   showScanState('active');
   renderScanLines();
   resumeLines().finally(() => startScanner());
@@ -1348,6 +1351,51 @@ elBtnCloturer.addEventListener('click', () => {
     .finally(() => {
       elBtnCloturer.disabled = false;
       elBtnCloturer.textContent = 'Clôturer la session';
+    });
+});
+
+elBtnCloturePartielle.addEventListener('click', () => {
+  if (!activeSession) return;
+  const reste = activeLines.filter(l => l.scannee < l.attendue);
+  if (reste.length === 0) {
+    alert("Toutes les lignes sont complètes — utilise plutôt « Clôturer la session ».");
+    return;
+  }
+  const detail = reste.map(l => '• ' + l.reference + ' (' + (l.attendue - l.scannee) + ' restant)').join('\n');
+  if (!confirm(
+    "Clôturer en livraison partielle ?\n\n" +
+    "Ce qui a été scanné part en stock maintenant. Un nouveau BL sera créé automatiquement pour le reste :\n\n" +
+    detail
+  )) return;
+
+  elBtnCloturePartielle.disabled = true;
+  elBtnCloturePartielle.innerHTML = '<span class="spinner"></span> Clôture...';
+
+  sendQueue
+    .then(() => fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ ID_Session: activeSession.id, action: 'partielle', _token: CONFIG.TOKEN })
+    }))
+    .then(() => {
+      stopScanner();
+      const units = activeLines.reduce((a, l) => a + l.scannee, 0);
+      document.getElementById('scanSuccessText').textContent =
+        "Livraison partielle enregistrée — un nouveau BL a été créé pour le reste.";
+      document.getElementById('scanSuccessRecap').innerHTML =
+        '<div><span>BL / Réf.</span><span>' + activeSession.numero + '</span></div>'
+        + '<div><span>Unités parties aujourd\'hui</span><span>' + units + '</span></div>'
+        + '<div><span>Références reportées</span><span>' + reste.length + '</span></div>';
+      showScanState('success');
+    })
+    .catch(() => {
+      elScanReaderMsg.classList.remove('hidden');
+      elScanReaderMsg.textContent = "La clôture partielle n'a pas pu être envoyée — réessaie.";
+    })
+    .finally(() => {
+      elBtnCloturePartielle.disabled = false;
+      elBtnCloturePartielle.textContent = 'Clôturer — reste à livrer';
     });
 });
 
