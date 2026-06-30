@@ -726,9 +726,42 @@ function validateForm(){
 elBtnSubmit.addEventListener('click', () => {
   elErrorBanner.classList.remove('show');
   elBtnSubmit.disabled = true;
-  elBtnSubmit.innerHTML = '<span class="spinner"></span> Émission en cours...';
+  elBtnSubmit.innerHTML = '<span class="spinner"></span> Vérification du numéro...';
 
   const numero = elNumero.value.trim();
+
+  // Contrôle anti-doublon : on interroge les sessions avant d'émettre.
+  // GET lisible (pas no-cors) — on peut comparer le Numero_BL de façon fiable.
+  fetch(CONFIG.FLOWS.LISTE_SESSIONS)
+    .then(r => r.json())
+    .then(data => {
+      const sessions = Array.isArray(data) ? data : (data.value || []);
+      sessionsCache = sessions;
+      sessionsLoadedOnce = true;
+      const existe = sessions.find(s => String(s.Numero_BL || '').trim().toLowerCase() === numero.toLowerCase());
+      if (existe) {
+        const statut = choiceValue(existe.Statut) || '?';
+        elErrorBanner.textContent = `⚠️ Le N° de BL « ${numero} » existe déjà (session « ${statut} »). Choisis un autre numéro.`;
+        elErrorBanner.classList.add('show');
+        elBtnSubmit.disabled = false;
+        elBtnSubmit.textContent = 'Émettre le BL';
+        return Promise.reject('doublon');
+      }
+      // Pas de doublon → on émet
+      elBtnSubmit.innerHTML = '<span class="spinner"></span> Émission en cours...';
+      return emettreBLPortail(numero);
+    })
+    .catch(err => {
+      if (err === 'doublon') return; // déjà géré
+      // Échec du contrôle réseau : on n'émet PAS à l'aveugle, on demande de réessayer
+      elErrorBanner.textContent = "Impossible de vérifier le numéro (connexion ?). Réessaie dans un instant.";
+      elErrorBanner.classList.add('show');
+      elBtnSubmit.disabled = false;
+      elBtnSubmit.textContent = 'Émettre le BL';
+    });
+});
+
+function emettreBLPortail(numero) {
   const client = selectedType === 'Inventaire physique' ? '' : elInputClient.value.trim();
   const titre = selectedType === 'Inventaire physique' ? `${numero} - Inventaire` : `${numero} - ${client}`;
 
@@ -744,7 +777,7 @@ elBtnSubmit.addEventListener('click', () => {
     _token: CONFIG.TOKEN
   };
 
-  fetch(CONFIG.FLOWS.EMISSION_BL, {
+  return fetch(CONFIG.FLOWS.EMISSION_BL, {
     method: 'POST',
     mode: 'no-cors',
     headers: { 'Content-Type': 'text/plain' },
@@ -769,7 +802,7 @@ elBtnSubmit.addEventListener('click', () => {
     elBtnSubmit.disabled = false;
     elBtnSubmit.textContent = 'Émettre le BL';
   });
-});
+}
 
 document.getElementById('btnReset').addEventListener('click', () => {
   selectedType = null;
