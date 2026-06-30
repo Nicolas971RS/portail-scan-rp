@@ -145,6 +145,12 @@ input[type="text"]:focus{
   border-color:var(--violet);
 }
 input[type="text"]::placeholder{color:#aab0c0;}
+.list-search{position:relative;display:flex;align-items:center;margin-bottom:14px;}
+.list-search .ls-icon{position:absolute;left:13px;font-size:16px;pointer-events:none;opacity:.6;}
+.list-search input{flex:1;padding:13px 40px 13px 40px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:15px;color:var(--text);background:var(--card);}
+.list-search input:focus{border-color:var(--violet);outline:none;}
+.list-search .ls-clear{position:absolute;right:8px;background:none;border:none;font-size:15px;color:var(--text-muted);cursor:pointer;padding:6px 9px;border-radius:8px;}
+.list-search .ls-clear:hover{background:var(--bg);}
 .helper{font-size:12px;color:var(--text-muted);margin-top:6px;}
 .type-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 .type-card{
@@ -511,6 +517,12 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
         <button class="refresh-btn" id="btnRefresh" title="Rafraîchir">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path><path d="M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
         </button>
+      </div>
+
+      <div class="list-search">
+        <span class="ls-icon">🔍</span>
+        <input type="text" id="searchBL" placeholder="Rechercher un N° BL ou un client..." autocomplete="off" oninput="renderSessions()">
+        <button type="button" id="searchBLClear" class="ls-clear" onclick="document.getElementById('searchBL').value='';renderSessions();" title="Effacer">✕</button>
       </div>
 
       <div class="banner error" id="listErrorBanner"></div>
@@ -897,15 +909,34 @@ function fetchSessions() {
 }
 
 function renderSessions() {
-  const waiting = sessionsCache
+  let waiting = sessionsCache
     .filter(s => choiceValue(s.Statut) === 'BL Émis')
     .sort((a, b) => new Date(a.Date_Emission) - new Date(b.Date_Emission));
 
-  elListCount.textContent = waiting.length + (waiting.length === 1 ? ' BL en attente' : ' BL en attente');
+  const totalAttente = waiting.length;
+
+  // Filtre de recherche — N° BL ou Client
+  const searchEl = document.getElementById('searchBL');
+  const q = searchEl ? searchEl.value.trim().toLowerCase() : '';
+  if (q) {
+    waiting = waiting.filter(s =>
+      String(s.Numero_BL || '').toLowerCase().includes(q) ||
+      String(s.Client || '').toLowerCase().includes(q)
+    );
+  }
+
+  if (q) {
+    elListCount.textContent = waiting.length + ' / ' + totalAttente + ' BL';
+  } else {
+    elListCount.textContent = totalAttente + ' BL en attente';
+  }
 
   if (waiting.length === 0) {
     elSessionsList.innerHTML = '';
     elListEmpty.style.display = 'block';
+    elListEmpty.textContent = q
+      ? 'Aucun BL ne correspond à « ' + searchEl.value.trim() + ' ».'
+      : 'Aucun BL en attente actuellement.';
     return;
   }
   elListEmpty.style.display = 'none';
