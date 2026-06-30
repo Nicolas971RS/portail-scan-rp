@@ -454,6 +454,7 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
           <div class="field">
             <label id="labelNumero">Numéro de BL <span class="req">*</span></label>
             <input type="text" id="inputNumero" placeholder="Ex: BL-2026-0458" autocomplete="off">
+            <div id="numeroDoublonWarn" style="font-size:12.5px;color:var(--danger);margin-top:6px;display:none;font-weight:600;"></div>
           </div>
 
           <div class="field" id="fieldClient">
@@ -665,6 +666,7 @@ document.querySelectorAll('.type-card').forEach(card => {
       elLabelNumero.innerHTML = 'Numéro de BL <span class="req">*</span>';
       if (elNumero.value.startsWith('INV-')) elNumero.value = '';
       if (!clientsLoaded) loadClients();
+      if (!sessionsLoadedOnce) preloadSessionsForCheck();
       elFieldPreparation.style.display = 'block';
     }
     validateForm();
@@ -680,7 +682,41 @@ document.querySelectorAll('.pill[data-vendeur]').forEach(pill => {
   });
 });
 
-elNumero.addEventListener('input', validateForm);
+// Charge silencieusement les sessions dans le cache (pour l'avertissement doublon temps réel)
+function preloadSessionsForCheck() {
+  fetch(CONFIG.FLOWS.LISTE_SESSIONS)
+    .then(r => r.json())
+    .then(data => {
+      sessionsCache = Array.isArray(data) ? data : (data.value || []);
+      sessionsLoadedOnce = true;
+      checkNumeroDoublon(); // re-vérifie si un numéro est déjà tapé
+    })
+    .catch(() => { /* silencieux — le contrôle dur au clic reste le filet */ });
+}
+
+elNumero.addEventListener('input', () => {
+  validateForm();
+  checkNumeroDoublon();
+});
+
+// Avertissement temps réel : le N° saisi existe-t-il déjà ?
+function checkNumeroDoublon() {
+  const warn = document.getElementById('numeroDoublonWarn');
+  if (!warn) return;
+  const num = elNumero.value.trim();
+  if (!num || selectedType === 'Inventaire physique') {
+    warn.style.display = 'none';
+    return;
+  }
+  const existe = sessionsCache.find(s => String(s.Numero_BL || '').trim().toLowerCase() === num.toLowerCase());
+  if (existe) {
+    const statut = choiceValue(existe.Statut) || '?';
+    warn.textContent = `⚠️ Ce N° de BL existe déjà (session « ${statut} »). Choisis un autre numéro.`;
+    warn.style.display = 'block';
+  } else {
+    warn.style.display = 'none';
+  }
+}
 
 function loadClients(){
   elClientHelper.textContent = 'Chargement des clients...';
@@ -830,6 +866,8 @@ document.getElementById('btnReset').addEventListener('click', () => {
   selectedVendeur = null;
   elNumero.value = '';
   elInputClient.value = '';
+  const _w = document.getElementById('numeroDoublonWarn');
+  if (_w) _w.style.display = 'none';
   document.querySelectorAll('.type-card').forEach(c => c.classList.remove('selected'));
   document.querySelectorAll('.pill[data-vendeur]').forEach(p => p.classList.remove('selected'));
   elFieldClient.style.display = 'block';
