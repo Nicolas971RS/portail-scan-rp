@@ -452,8 +452,9 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
           </div>
 
           <div class="field">
-            <label id="labelNumero">Numéro de BL <span class="req">*</span></label>
-            <input type="text" id="inputNumero" placeholder="Ex: BL-2026-0458" autocomplete="off">
+            <label id="labelNumero">Numéro de BL ou FC <span class="req">*</span></label>
+            <input type="text" id="inputNumero" placeholder="Ex: 820950 (BL) ou 156413 (FC)" autocomplete="off">
+            <div id="numeroTypeDoc" style="font-size:12.5px;color:var(--text-muted);margin-top:6px;display:none"></div>
             <div id="numeroDoublonWarn" style="font-size:12.5px;color:var(--danger);margin-top:6px;display:none;font-weight:600;"></div>
           </div>
 
@@ -663,7 +664,7 @@ document.querySelectorAll('.type-card').forEach(card => {
       elCheckPreparation.checked = false;
     } else {
       elFieldClient.style.display = 'block';
-      elLabelNumero.innerHTML = 'Numéro de BL <span class="req">*</span>';
+      elLabelNumero.innerHTML = 'Numéro de BL ou FC <span class="req">*</span>';
       if (elNumero.value.startsWith('INV-')) elNumero.value = '';
       if (!clientsLoaded) loadClients();
       if (!sessionsLoadedOnce) preloadSessionsForCheck();
@@ -702,8 +703,27 @@ elNumero.addEventListener('input', () => {
 // Avertissement temps réel : le N° saisi existe-t-il déjà ?
 function checkNumeroDoublon() {
   const warn = document.getElementById('numeroDoublonWarn');
+  const typeEl = document.getElementById('numeroTypeDoc');
   if (!warn) return;
   const num = elNumero.value.trim();
+
+  // Détection du type de document : BL commence par 8, Facture directe commence par 1
+  if (typeEl) {
+    if (!num || selectedType === 'Inventaire physique') {
+      typeEl.style.display = 'none';
+    } else if (/^8/.test(num)) {
+      typeEl.textContent = '📦 Bon de livraison détecté';
+      typeEl.style.color = 'var(--text-muted)';
+      typeEl.style.display = 'block';
+    } else if (/^1/.test(num)) {
+      typeEl.textContent = '🧾 Facture directe détectée (client divers, sans BC)';
+      typeEl.style.color = 'var(--violet)';
+      typeEl.style.display = 'block';
+    } else {
+      typeEl.style.display = 'none';
+    }
+  }
+
   if (!num || selectedType === 'Inventaire physique') {
     warn.style.display = 'none';
     return;
@@ -711,7 +731,7 @@ function checkNumeroDoublon() {
   const existe = sessionsCache.find(s => String(s.Numero_BL || '').trim().toLowerCase() === num.toLowerCase());
   if (existe) {
     const statut = choiceValue(existe.Statut) || '?';
-    warn.textContent = `⚠️ Ce N° de BL existe déjà (session « ${statut} »). Choisis un autre numéro.`;
+    warn.textContent = `⚠️ Ce N° de BL/FC existe déjà (session « ${statut} »). Choisis un autre numéro.`;
     warn.style.display = 'block';
   } else {
     warn.style.display = 'none';
@@ -873,7 +893,7 @@ document.getElementById('btnReset').addEventListener('click', () => {
   elFieldClient.style.display = 'block';
   elCheckPreparation.checked = false;
   elFieldPreparation.style.display = 'block';
-  elLabelNumero.innerHTML = 'Numéro de BL <span class="req">*</span>';
+  elLabelNumero.innerHTML = 'Numéro de BL ou FC <span class="req">*</span>';
   elFormWrap.classList.remove('hidden');
   elSuccessView.classList.remove('show');
   validateForm();
@@ -931,6 +951,14 @@ function choiceValue(field) {
 
 function boolValue(field) {
   return field === true || field === 'Oui' || field === '1' || field === 1;
+}
+
+// Icône devant le N° pour distinguer un BL (préfixe 8) d'une facture directe (préfixe 1)
+function docIcon(numero) {
+  const n = String(numero || '').trim();
+  if (/^8/.test(n)) return '<span title="Bon de livraison" style="margin-right:4px">📦</span>';
+  if (/^1/.test(n)) return '<span title="Facture directe — client divers, sans BC" style="margin-right:4px">🧾</span>';
+  return '';
 }
 
 function fetchSessions() {
@@ -997,7 +1025,7 @@ function renderSessions() {
     return `
       <div class="session-card${aPreparer ? ' a-preparer' : ''}">
         <div class="sc-top">
-          <span class="sc-numero">${s.Numero_BL}</span>
+          <span class="sc-numero">${docIcon(s.Numero_BL)}${s.Numero_BL}</span>
           <span class="badge ${isLivraison ? 'livraison' : 'inventaire'}">${type}</span>
         </div>
         ${aPreparer ? '<div class="badge-preparation">À préparer — pas d\'urgence de chargement</div>' : ''}
@@ -1188,7 +1216,7 @@ function renderScanPicker(list){
     const type = choiceValue(s.Type_Operation);
     const isLiv = type.toLowerCase() === 'livraison client';
     return '<div class="scan-pick-card">'
-      + '<div class="spc-top"><span class="spc-numero">' + s.Numero_BL + '</span>'
+      + '<div class="spc-top"><span class="spc-numero">' + docIcon(s.Numero_BL) + s.Numero_BL + '</span>'
       + '<span class="badge ' + (isLiv ? 'livraison' : 'inventaire') + '">' + type + '</span></div>'
       + (isLiv ? '<div class="sc-row"><span>Client</span><span>' + (s.Client || '') + '</span></div>' : '')
       + '<button data-idx="' + i + '">Reprendre le scan</button></div>';
