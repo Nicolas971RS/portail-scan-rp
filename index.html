@@ -1410,13 +1410,19 @@ function registerScan(rawCode){
   line.ecart = line.scannee - line.attendue;
   feedbackScan();
   renderScanLines(line.reference);
-  enqueueLinePost('scan', line);
-  // Focus auto sur le champ "Livré" de la ligne qui vient d'apparaître (livraison uniquement)
   if (isLiv){
+    // En livraison : différer l'envoi 700ms pour laisser le magasinier corriger la quantité.
+    // Si onLivreInput se déclenche avant, il annule ce timer et envoie la bonne valeur.
+    clearTimeout(attTimers[line.reference]);
+    attTimers[line.reference] = setTimeout(() => enqueueLinePost('scan', line), 700);
+    // Focus auto sur le champ Livré
     setTimeout(() => {
       const inp = elScanLines.querySelector('.scan-line[data-ref="' + cssEsc(line.reference) + '"] input.liv-input');
       if (inp){ inp.focus(); inp.select(); }
     }, 80);
+  } else {
+    // Inventaire : envoi immédiat comme avant
+    enqueueLinePost('scan', line);
   }
 }
 
