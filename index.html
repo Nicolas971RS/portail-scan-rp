@@ -411,6 +411,22 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
 .scan-line .m input.liv-input{width:56px;padding:5px 4px;text-align:center;border:1.5px solid var(--violet);border-radius:8px;font-family:inherit;font-size:17px;font-weight:800;color:var(--violet);}
 .scan-line .m input.liv-input:focus{outline:none;border-color:var(--violet-dark);}
 .scan-line .m .mnum.attendu{color:var(--text-muted);font-size:18px;}
+.btn-valide{
+  width:56px;height:56px;
+  border-radius:50%;
+  border:2px solid var(--border);
+  background:#fff;
+  color:var(--text-muted);
+  font-size:22px;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .2s, border-color .2s, color .2s;
+}
+.btn-valide.done{
+  background:var(--success);
+  border-color:var(--success);
+  color:#fff;
+}
 .scan-line .ecart-badge{font-size:17px;font-weight:800;padding:3px 10px;border-radius:8px;line-height:1.2;}
 .scan-line .ecart-badge.ok{background:var(--success-soft);color:var(--success);}
 .scan-line .ecart-badge.ko{background:var(--danger-soft);color:var(--danger);}
@@ -1438,7 +1454,7 @@ function renderScanLines(flashRef){
         +     '<input class="liv-input" type="number" min="0" inputmode="numeric" data-ref="' + escAttr(l.reference) + '" value="' + l.scannee + '" style="width:72px;font-size:22px;">'
         +     '<div class="mlbl">Livré</div>'
         +   '</div>'
-        +   '<div class="m" style="flex:0 0 auto;"><div style="font-size:28px;color:var(--success);">✓</div><div class="mlbl">Validé</div></div>'
+        +   '<div class="m" style="flex:0 0 auto;"><button class="btn-valide" data-ref="' + escAttr(l.reference) + '" title="Marquer comme vérifié" onclick="toggleValide(this)">✓</button><div class="mlbl">Validé</div></div>'
         + '</div></div>';
     }
     return '<div class="scan-line" data-ref="' + escAttr(l.reference) + '">'
@@ -1463,6 +1479,10 @@ function renderScanLines(flashRef){
     const el = elScanLines.querySelector('.scan-line[data-ref="' + cssEsc(flashRef) + '"]');
     if (el){ el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 700); }
   }
+}
+
+function toggleValide(btn){
+  btn.classList.toggle('done');
 }
 
 function onLivreInput(e){
