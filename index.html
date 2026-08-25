@@ -408,8 +408,9 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
 .scan-line .m .mnum{font-size:20px;font-weight:800;color:var(--text);line-height:1;}
 .scan-line .m .mnum.scanned{color:var(--violet);}
 .scan-line .m .mlbl{font-size:10px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.03em;}
-.scan-line .m input.att-input{width:56px;padding:5px 4px;text-align:center;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:17px;font-weight:800;color:var(--text);}
-.scan-line .m input.att-input:focus{outline:none;border-color:var(--violet);}
+.scan-line .m input.liv-input{width:56px;padding:5px 4px;text-align:center;border:1.5px solid var(--violet);border-radius:8px;font-family:inherit;font-size:17px;font-weight:800;color:var(--violet);}
+.scan-line .m input.liv-input:focus{outline:none;border-color:var(--violet-dark);}
+.scan-line .m .mnum.attendu{color:var(--text-muted);font-size:18px;}
 .scan-line .ecart-badge{font-size:17px;font-weight:800;padding:3px 10px;border-radius:8px;line-height:1.2;}
 .scan-line .ecart-badge.ok{background:var(--success-soft);color:var(--success);}
 .scan-line .ecart-badge.ko{background:var(--danger-soft);color:var(--danger);}
@@ -1372,17 +1373,26 @@ function registerScan(rawCode){
   const code = (rawCode || '').toString().trim();
   if (!code || !activeSession) return;
   lastCountTime = Date.now();
+  const isLiv = (activeSession.type || '').toLowerCase() === 'livraison client';
   let line = activeLines.find(l => l.reference === code);
   if (line){
+    // En livraison : le scan incrémente "scannee" (= qté livrée) seulement si le magasinier
+    // n'a pas encore saisi manuellement (scannee === attendue ou scannee === 1 initial).
+    // On incrémente toujours pour permettre les multi-scans intentionnels.
     line.scannee += 1;
   } else {
     const cat = lookupCatalogue(code);
+    // En livraison : scannee initialisé à attendue (valeur BL) pour pré-remplir le champ livré.
+    // Si ref non cataloguée ou inventaire : scannee = 1.
+    const isInv = (activeSession.type || '').toLowerCase() === 'inventaire physique';
+    const att = isInv ? (cat ? cat.stock : 0) : 0;
+    const initSc = (isLiv && att > 0) ? att : 1;
     line = {
       reference: code,
       designation: cat ? cat.designation : '',
       known: !!cat,
-      attendue: ((activeSession.type || '').toLowerCase() === 'inventaire physique') ? (cat ? cat.stock : 0) : 0,
-      scannee: 1
+      attendue: att,
+      scannee: initSc
     };
     activeLines.unshift(line);
   }
@@ -1390,6 +1400,13 @@ function registerScan(rawCode){
   feedbackScan();
   renderScanLines(line.reference);
   enqueueLinePost('scan', line);
+  // Focus auto sur le champ "Livré" de la ligne qui vient d'apparaître (livraison uniquement)
+  if (isLiv){
+    setTimeout(() => {
+      const inp = elScanLines.querySelector('.scan-line[data-ref="' + cssEsc(line.reference) + '"] input.liv-input');
+      if (inp){ inp.focus(); inp.select(); }
+    }, 80);
+  }
 }
 
 function updateStats(){
@@ -1411,9 +1428,20 @@ function renderScanLines(flashRef){
     const ecTxt = l.ecart === 0 ? '0' : (l.ecart > 0 ? '+' + l.ecart : '' + l.ecart);
     const desCls = l.known ? 'sl-des' : 'sl-des unknown';
     const desTxt = l.known ? (l.designation || '—') : 'Référence non cataloguée';
-    const attCell = isLiv
-      ? '<input class="att-input" type="number" min="0" inputmode="numeric" data-ref="' + escAttr(l.reference) + '" value="' + (l.attendue ? l.attendue : '') + '" placeholder="0">'
-      : '<div class="mnum">' + l.attendue + '</div>';
+    // En livraison : colonne 1 = LIVRÉ (input éditable, violet), colonne 2 = ATTENDU (lecture seule, gris)
+    // En inventaire : colonne 1 = SCANNÉ (lecture seule), colonne 2 = STOCK THÉO (lecture seule)
+    let col1, col2, lbl1, lbl2;
+    if (isLiv){
+      col1 = '<input class="liv-input" type="number" min="0" inputmode="numeric" data-ref="' + escAttr(l.reference) + '" value="' + l.scannee + '">';
+      col2 = '<div class="mnum attendu">' + l.attendue + '</div>';
+      lbl1 = 'Livré';
+      lbl2 = 'Attendu BL';
+    } else {
+      col1 = '<div class="mnum scanned">' + l.scannee + '</div>';
+      col2 = '<div class="mnum">' + l.attendue + '</div>';
+      lbl1 = 'Scanné';
+      lbl2 = attLbl;
+    }
     return '<div class="scan-line" data-ref="' + escAttr(l.reference) + '">'
       + '<div class="sl-top"><div class="sl-ref">' + l.reference + '</div>'
       +   '<button class="sl-delete" data-ref="' + escAttr(l.reference) + '" title="Supprimer cette ligne" aria-label="Supprimer cette ligne">'
@@ -1422,13 +1450,13 @@ function renderScanLines(flashRef){
       + '<div class="sl-sync" style="display:none"></div>'
       + '<div class="' + desCls + '">' + desTxt + '</div>'
       + '<div class="sl-metrics">'
-      +   '<div class="m"><div class="mnum scanned">' + l.scannee + '</div><div class="mlbl">Scanné</div></div>'
-      +   '<div class="m">' + attCell + '<div class="mlbl">' + attLbl + '</div></div>'
+      +   '<div class="m">' + col1 + '<div class="mlbl">' + lbl1 + '</div></div>'
+      +   '<div class="m">' + col2 + '<div class="mlbl">' + lbl2 + '</div></div>'
       +   '<div class="m"><div class="ecart-badge ' + (ecOk ? 'ok' : 'ko') + '">' + ecTxt + '</div><div class="mlbl">Écart</div></div>'
       + '</div></div>';
   }).join('');
   if (isLiv){
-    elScanLines.querySelectorAll('input.att-input').forEach(inp => inp.addEventListener('input', onAttendueInput));
+    elScanLines.querySelectorAll('input.liv-input').forEach(inp => inp.addEventListener('input', onLivreInput));
   }
   elScanLines.querySelectorAll('button.sl-delete').forEach(btn => btn.addEventListener('click', onDeleteLine));
   activeLines.forEach(l => { if (l.syncStatus && l.syncStatus !== 'ok') updateSyncBadge(l.reference); });
@@ -1438,11 +1466,11 @@ function renderScanLines(flashRef){
   }
 }
 
-function onAttendueInput(e){
+function onLivreInput(e){
   const ref = e.target.dataset.ref;
   const line = activeLines.find(l => l.reference === ref);
   if (!line) return;
-  line.attendue = num(e.target.value);
+  line.scannee = num(e.target.value);
   line.ecart = line.scannee - line.attendue;
   const row = e.target.closest('.scan-line');
   if (row){
