@@ -1376,23 +1376,18 @@ function registerScan(rawCode){
   const isLiv = (activeSession.type || '').toLowerCase() === 'livraison client';
   let line = activeLines.find(l => l.reference === code);
   if (line){
-    // En livraison : le scan incrémente "scannee" (= qté livrée) seulement si le magasinier
-    // n'a pas encore saisi manuellement (scannee === attendue ou scannee === 1 initial).
-    // On incrémente toujours pour permettre les multi-scans intentionnels.
     line.scannee += 1;
+    if (isLiv) line.attendue = line.scannee; // livraison : attendue suit scannee, pas de prévu BL
   } else {
     const cat = lookupCatalogue(code);
-    // En livraison : scannee initialisé à attendue (valeur BL) pour pré-remplir le champ livré.
-    // Si ref non cataloguée ou inventaire : scannee = 1.
     const isInv = (activeSession.type || '').toLowerCase() === 'inventaire physique';
-    const att = isInv ? (cat ? cat.stock : 0) : 0;
-    const initSc = (isLiv && att > 0) ? att : 1;
+    const initAtt = isInv ? (cat ? cat.stock : 0) : 1;
     line = {
       reference: code,
       designation: cat ? cat.designation : '',
       known: !!cat,
-      attendue: att,
-      scannee: initSc
+      attendue: initAtt,
+      scannee: 1
     };
     activeLines.unshift(line);
   }
@@ -1428,19 +1423,23 @@ function renderScanLines(flashRef){
     const ecTxt = l.ecart === 0 ? '0' : (l.ecart > 0 ? '+' + l.ecart : '' + l.ecart);
     const desCls = l.known ? 'sl-des' : 'sl-des unknown';
     const desTxt = l.known ? (l.designation || '—') : 'Référence non cataloguée';
-    // En livraison : colonne 1 = LIVRÉ (input éditable, violet), colonne 2 = ATTENDU (lecture seule, gris)
-    // En inventaire : colonne 1 = SCANNÉ (lecture seule), colonne 2 = STOCK THÉO (lecture seule)
-    let col1, col2, lbl1, lbl2;
+    // Livraison : 2 colonnes — LIVRÉ (input éditable) + ✓ (validation visuelle)
+    // Inventaire : 3 colonnes — SCANNÉ + STOCK THÉO + ÉCART
     if (isLiv){
-      col1 = '<input class="liv-input" type="number" min="0" inputmode="numeric" data-ref="' + escAttr(l.reference) + '" value="' + l.scannee + '">';
-      col2 = '<div class="mnum attendu">' + l.attendue + '</div>';
-      lbl1 = 'Livré';
-      lbl2 = 'Attendu BL';
-    } else {
-      col1 = '<div class="mnum scanned">' + l.scannee + '</div>';
-      col2 = '<div class="mnum">' + l.attendue + '</div>';
-      lbl1 = 'Scanné';
-      lbl2 = attLbl;
+      return '<div class="scan-line" data-ref="' + escAttr(l.reference) + '">'
+        + '<div class="sl-top"><div class="sl-ref">' + l.reference + '</div>'
+        +   '<button class="sl-delete" data-ref="' + escAttr(l.reference) + '" title="Supprimer cette ligne" aria-label="Supprimer cette ligne">'
+        +     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>'
+        +   '</button></div>'
+        + '<div class="sl-sync" style="display:none"></div>'
+        + '<div class="' + desCls + '">' + desTxt + '</div>'
+        + '<div class="sl-metrics" style="justify-content:center;gap:24px;">'
+        +   '<div class="m" style="flex:0 0 auto;">'
+        +     '<input class="liv-input" type="number" min="0" inputmode="numeric" data-ref="' + escAttr(l.reference) + '" value="' + l.scannee + '" style="width:72px;font-size:22px;">'
+        +     '<div class="mlbl">Livré</div>'
+        +   '</div>'
+        +   '<div class="m" style="flex:0 0 auto;"><div style="font-size:28px;color:var(--success);">✓</div><div class="mlbl">Validé</div></div>'
+        + '</div></div>';
     }
     return '<div class="scan-line" data-ref="' + escAttr(l.reference) + '">'
       + '<div class="sl-top"><div class="sl-ref">' + l.reference + '</div>'
@@ -1450,8 +1449,8 @@ function renderScanLines(flashRef){
       + '<div class="sl-sync" style="display:none"></div>'
       + '<div class="' + desCls + '">' + desTxt + '</div>'
       + '<div class="sl-metrics">'
-      +   '<div class="m">' + col1 + '<div class="mlbl">' + lbl1 + '</div></div>'
-      +   '<div class="m">' + col2 + '<div class="mlbl">' + lbl2 + '</div></div>'
+      +   '<div class="m"><div class="mnum scanned">' + l.scannee + '</div><div class="mlbl">Scanné</div></div>'
+      +   '<div class="m"><div class="mnum">' + l.attendue + '</div><div class="mlbl">' + attLbl + '</div></div>'
       +   '<div class="m"><div class="ecart-badge ' + (ecOk ? 'ok' : 'ko') + '">' + ecTxt + '</div><div class="mlbl">Écart</div></div>'
       + '</div></div>';
   }).join('');
@@ -1471,13 +1470,16 @@ function onLivreInput(e){
   const line = activeLines.find(l => l.reference === ref);
   if (!line) return;
   line.scannee = num(e.target.value);
-  line.ecart = line.scannee - line.attendue;
+  line.attendue = line.scannee; // attendue = scannee : pas de notion de prévu BL, écart toujours 0
+  line.ecart = 0;
   const row = e.target.closest('.scan-line');
   if (row){
     const badge = row.querySelector('.ecart-badge');
-    const ecOk = line.ecart === 0;
-    badge.className = 'ecart-badge ' + (ecOk ? 'ok' : 'ko');
-    badge.textContent = line.ecart === 0 ? '0' : (line.ecart > 0 ? '+' + line.ecart : '' + line.ecart);
+    badge.className = 'ecart-badge ok';
+    badge.textContent = '0';
+    // Mise à jour affichage ATTENDU BL (lecture seule)
+    const attEl = row.querySelector('.mnum.attendu');
+    if (attEl) attEl.textContent = line.scannee;
   }
   updateStats();
   clearTimeout(attTimers[ref]);
