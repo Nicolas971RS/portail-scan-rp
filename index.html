@@ -1420,17 +1420,15 @@ function registerScan(rawCode){
   feedbackScan();
   renderScanLines(line.reference);
   if (isLiv){
-    // En livraison : différer l'envoi 700ms pour laisser le magasinier corriger la quantité.
-    // Si onLivreInput se déclenche avant, il annule ce timer et envoie la bonne valeur.
-    clearTimeout(attTimers[line.reference]);
-    attTimers[line.reference] = setTimeout(() => enqueueLinePost('scan', line), 700);
-    // Focus auto sur le champ Livré
+    // Livraison : AUCUN envoi immédiat — tout reste en mémoire JS.
+    // L'envoi vers SharePoint se fait en bloc à la clôture (clotureEnvoyerLignes).
+    // Focus auto sur le champ Livré pour faciliter la saisie de quantité.
     setTimeout(() => {
       const inp = elScanLines.querySelector('.scan-line[data-ref="' + cssEsc(line.reference) + '"] input.liv-input');
       if (inp){ inp.focus(); inp.select(); }
     }, 80);
   } else {
-    // Inventaire : envoi immédiat comme avant
+    // Inventaire : envoi immédiat conservé
     enqueueLinePost('scan', line);
   }
 }
@@ -1514,8 +1512,7 @@ function onLivreInput(e){
     if (attEl) attEl.textContent = line.scannee;
   }
   updateStats();
-  clearTimeout(attTimers[ref]);
-  attTimers[ref] = setTimeout(() => enqueueLinePost('set_attendue', line), 600);
+  // Livraison : pas d'envoi réseau ici — la valeur sera envoyée à la clôture
 }
 
 function onDeleteLine(e){
@@ -1580,6 +1577,30 @@ function updateSyncBadge(ref){
   }
 }
 
+// Envoi séquentiel de toutes les lignes mémoire vers SharePoint avant clôture (mode livraison)
+function clotureEnvoyerLignes(){
+  const isLiv = activeSession && (activeSession.type || '').toLowerCase() === 'livraison client';
+  if (!isLiv) return Promise.resolve(); // inventaire : lignes déjà envoyées en temps réel
+  let chain = Promise.resolve();
+  activeLines.forEach(line => {
+    chain = chain.then(() => fetch(CONFIG.FLOWS.ENREGISTRER_LIGNE, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: 'scan',
+        ID_Session: activeSession.id,
+        Reference_Article: line.reference,
+        Designation: line.designation,
+        Quantite_Attendue: line.scannee,
+        Quantite_Scannee: line.scannee,
+        _token: CONFIG.TOKEN
+      })
+    })).then(() => new Promise(r => setTimeout(r, 150)));
+  });
+  return chain;
+}
+
 elBtnCloturer.addEventListener('click', () => {
   if (!activeSession) return;
   if (activeLines.length === 0 && !confirm("Aucun article scanné. Clôturer quand même ?")) return;
@@ -1587,15 +1608,18 @@ elBtnCloturer.addEventListener('click', () => {
   if (ecarts > 0 && !confirm(ecarts + " référence(s) en écart. Clôturer la session ?")) return;
 
   elBtnCloturer.disabled = true;
-  elBtnCloturer.innerHTML = '<span class="spinner"></span> Clôture...';
+  elBtnCloturer.innerHTML = '<span class="spinner"></span> Envoi des lignes...';
 
-  sendQueue
-    .then(() => fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ ID_Session: activeSession.id, _token: CONFIG.TOKEN })
-    }))
+  clotureEnvoyerLignes()
+    .then(() => {
+      elBtnCloturer.innerHTML = '<span class="spinner"></span> Clôture...';
+      return fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ ID_Session: activeSession.id, _token: CONFIG.TOKEN })
+      });
+    })
     .then(() => {
       stopScanner();
       const units = activeLines.reduce((a, l) => a + l.scannee, 0);
@@ -1633,15 +1657,18 @@ elBtnCloturePartielle.addEventListener('click', () => {
   )) return;
 
   elBtnCloturePartielle.disabled = true;
-  elBtnCloturePartielle.innerHTML = '<span class="spinner"></span> Clôture...';
+  elBtnCloturePartielle.innerHTML = '<span class="spinner"></span> Envoi des lignes...';
 
-  sendQueue
-    .then(() => fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ ID_Session: activeSession.id, action: 'partielle', _token: CONFIG.TOKEN })
-    }))
+  clotureEnvoyerLignes()
+    .then(() => {
+      elBtnCloturePartielle.innerHTML = '<span class="spinner"></span> Clôture...';
+      return fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ ID_Session: activeSession.id, action: 'partielle', _token: CONFIG.TOKEN })
+      });
+    })
     .then(() => {
       stopScanner();
       const units = activeLines.reduce((a, l) => a + l.scannee, 0);
