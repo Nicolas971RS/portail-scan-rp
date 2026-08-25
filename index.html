@@ -1165,6 +1165,15 @@ const elScanPickerEmpty = document.getElementById('scanPickerEmpty');
 const elScanPickerError = document.getElementById('scanPickerError');
 const elScanPickerCount = document.getElementById('scanPickerCount');
 const elScanLines = document.getElementById('scanLines');
+
+// Délégation d'événements sur elScanLines — résiste aux re-renders innerHTML
+elScanLines.addEventListener('input', function(e){
+  if (e.target.classList.contains('liv-input')) onLivreInput(e);
+});
+elScanLines.addEventListener('click', function(e){
+  const delBtn = e.target.closest('button.sl-delete');
+  if (delBtn) onDeleteLine({ currentTarget: delBtn });
+});
 const elScanStats = document.getElementById('scanStats');
 const elScanReaderMsg = document.getElementById('scanReaderMsg');
 const elScanManualInput = document.getElementById('scanManualInput');
@@ -1476,10 +1485,7 @@ function renderScanLines(flashRef){
       +   '<div class="m"><div class="ecart-badge ' + (ecOk ? 'ok' : 'ko') + '">' + ecTxt + '</div><div class="mlbl">Écart</div></div>'
       + '</div></div>';
   }).join('');
-  if (isLiv){
-    elScanLines.querySelectorAll('input.liv-input').forEach(inp => inp.addEventListener('input', onLivreInput));
-  }
-  elScanLines.querySelectorAll('button.sl-delete').forEach(btn => btn.addEventListener('click', onDeleteLine));
+  // Listeners gérés par délégation sur elScanLines — voir l'initialisation en bas de fichier
   activeLines.forEach(l => { if (l.syncStatus && l.syncStatus !== 'ok') updateSyncBadge(l.reference); });
   if (flashRef){
     const el = elScanLines.querySelector('.scan-line[data-ref="' + cssEsc(flashRef) + '"]');
