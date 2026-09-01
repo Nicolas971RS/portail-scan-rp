@@ -594,7 +594,8 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
 
         <div id="scanLines"></div>
 
-        <button class="submit" id="btnCloturer" style="background:var(--navy);">Clôturer la session</button>
+        <button class="submit" id="btnCommandePrete" style="background:#0891b2;display:none;">✅ Commande prête — attendre le client</button>
+        <button class="submit" id="btnCloturer" style="background:var(--navy);">📦 Terminer la livraison</button>
         <button class="secondary" id="btnCloturePartielle" style="margin-top:10px;display:none;">Clôturer — reste à livrer</button>
         <button class="secondary" id="btnChangeSession" style="margin-top:10px;">Changer de session</button>
       </div>
@@ -1033,6 +1034,39 @@ function fetchSessions() {
 }
 
 function renderSessions() {
+  // ── Bloc "Prêtes à livrer" ──
+  const pretes = sessionsCache.filter(s => choiceValue(s.Statut) === 'Prête à livrer');
+  const elPretes = document.getElementById('pretes-block');
+  if (pretes.length && !elPretes) {
+    const block = document.createElement('div');
+    block.id = 'pretes-block';
+    block.style.cssText = 'background:#f0fdf4;border:2px solid #16a34a;border-radius:12px;padding:14px;margin-bottom:18px';
+    block.innerHTML = '<div style="font-weight:800;font-size:14px;color:#16a34a;margin-bottom:10px">✅ Prêtes à livrer — ' + pretes.length + ' commande' + (pretes.length > 1 ? 's' : '') + '</div>'
+      + pretes.map(s => {
+        const vendeur = choiceValue(s.Vendeur_Emetteur);
+        return '<div style="background:white;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">'
+          + '<div>'
+          + '<div style="font-weight:700;font-size:14px">' + docIcon(s.Numero_BL) + ' ' + s.Numero_BL + '</div>'
+          + '<div style="font-size:12px;color:#6b7280;margin-top:2px">' + (s.Client || '') + ' · ' + vendeur + '</div>'
+          + '</div>'
+          + '<button onclick="terminerLivraison(' + s.ID + ',\'' + s.Numero_BL + '\')" style="background:#16a34a;color:white;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;cursor:pointer">📦 Terminer livraison</button>'
+          + '</div>';
+      }).join('');
+    elSessionsList.parentNode.insertBefore(block, elSessionsList);
+  } else if (!pretes.length && elPretes) {
+    elPretes.remove();
+  } else if (pretes.length && elPretes) {
+    elPretes.innerHTML = '<div style="font-weight:800;font-size:14px;color:#16a34a;margin-bottom:10px">✅ Prêtes à livrer — ' + pretes.length + ' commande' + (pretes.length > 1 ? 's' : '') + '</div>'
+      + pretes.map(s => {
+        const vendeur = choiceValue(s.Vendeur_Emetteur);
+        return '<div style="background:white;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">'
+          + '<div><div style="font-weight:700;font-size:14px">' + docIcon(s.Numero_BL) + ' ' + s.Numero_BL + '</div>'
+          + '<div style="font-size:12px;color:#6b7280;margin-top:2px">' + (s.Client || '') + ' · ' + vendeur + '</div></div>'
+          + '<button onclick="terminerLivraison(' + s.ID + ',\'' + s.Numero_BL + '\')" style="background:#16a34a;color:white;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;cursor:pointer">📦 Terminer livraison</button>'
+          + '</div>';
+      }).join('');
+  }
+
   let waiting = sessionsCache
     .filter(s => choiceValue(s.Statut) === 'BL Émis')
     .sort((a, b) => new Date(a.Date_Emission) - new Date(b.Date_Emission));
@@ -1179,6 +1213,7 @@ const elScanReaderMsg = document.getElementById('scanReaderMsg');
 const elScanManualInput = document.getElementById('scanManualInput');
 const elBtnCloturer = document.getElementById('btnCloturer');
 const elBtnCloturePartielle = document.getElementById('btnCloturePartielle');
+const elBtnCommandePrete = document.getElementById('btnCommandePrete');
 
 function num(v){ const n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
 function escAttr(s){ return (s || '').toString().replace(/"/g, '&quot;'); }
@@ -1191,7 +1226,8 @@ function buildSession(s){
     client: s.Client || '',
     type: choiceValue(s.Type_Operation),
     vendeur: choiceValue(s.Vendeur_Emetteur),
-    magasinier: choiceValue(s.Magasinier)
+    magasinier: choiceValue(s.Magasinier),
+    aPreparer: boolValue(s.Preparation_Avance)
   };
 }
 
@@ -1295,6 +1331,12 @@ function startSession(sess){
   document.getElementById('scanSessionSub').textContent =
     (isLiv && sess.client ? sess.client + ' · ' : '') + 'Magasinier : ' + (sess.magasinier || selectedMagasinier);
   document.getElementById('btnCloturePartielle').style.display = isLiv ? 'block' : 'none';
+  // "Commande prête" visible si préparation à l'avance — session stockée dans activeSession.aPreparer
+  const showPrete = isLiv && sess.aPreparer;
+  elBtnCommandePrete.style.display = showPrete ? 'block' : 'none';
+  // En mode préparation à l'avance, "Terminer livraison" se fait depuis un autre endroit
+  // donc on libelle le bouton principal selon le contexte
+  elBtnCloturer.textContent = showPrete ? '📦 Terminer la livraison' : 'Clôturer la session';
   showScanState('active');
   renderScanLines();
   resumeLines().finally(() => startScanner());
@@ -1599,6 +1641,63 @@ function clotureEnvoyerLignes(){
     })).then(() => new Promise(r => setTimeout(r, 150)));
   });
   return chain;
+}
+
+// ── Commande prête (préparation à l'avance) ──
+elBtnCommandePrete.addEventListener('click', () => {
+  if (!activeSession) return;
+  if (!confirm('Marquer cette commande comme prête ? Le vendeur sera notifié et pourra valider la livraison quand le client arrivera.')) return;
+
+  elBtnCommandePrete.disabled = true;
+  elBtnCommandePrete.innerHTML = '<span class="spinner"></span> Envoi...';
+
+  clotureEnvoyerLignes()
+    .then(() => fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ ID_Session: activeSession.id, action: 'prete', _token: CONFIG.TOKEN })
+    }))
+    .then(() => {
+      stopScanner();
+      document.getElementById('scanSuccessText').textContent = 'Commande prête — le vendeur peut valider la livraison quand le client arrive.';
+      document.getElementById('scanSuccessRecap').innerHTML =
+        '<div><span>BL</span><span>' + activeSession.numero + '</span></div>'
+        + '<div><span>Client</span><span>' + (activeSession.client || '—') + '</span></div>'
+        + '<div><span>Statut</span><span>Prête à livrer</span></div>';
+      showScanState('success');
+    })
+    .catch(() => {
+      elScanReaderMsg.classList.remove('hidden');
+      elScanReaderMsg.textContent = "L'envoi a échoué — réessaie.";
+    })
+    .finally(() => {
+      elBtnCommandePrete.disabled = false;
+      elBtnCommandePrete.textContent = '✅ Commande prête — attendre le client';
+    });
+});
+
+// ── Livraisons prêtes : terminer depuis le portail ──
+function fetchPretesSessions(){
+  return fetch(CONFIG.FLOWS.LISTE_SESSIONS)
+    .then(r => r.json())
+    .then(data => {
+      const all = Array.isArray(data) ? data : (data.value || []);
+      return all.filter(s => choiceValue(s.Statut) === 'Prête à livrer');
+    });
+}
+function terminerLivraison(id, numero){
+  if (!confirm('Confirmer la livraison du BL ' + numero + ' ?')) return;
+  fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ ID_Session: id, action: 'terminer', _token: CONFIG.TOKEN })
+  }).then(() => {
+    showToast('✅ BL ' + numero + ' — livraison terminée');
+    // Rafraîchir la liste des BL en attente
+    if (typeof fetchSessions === 'function') fetchSessions();
+  });
 }
 
 elBtnCloturer.addEventListener('click', () => {
