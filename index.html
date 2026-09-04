@@ -591,6 +591,7 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
         </div>
 
         <div class="scan-stats" id="scanStats"></div>
+        <button type="button" onclick="alert(JSON.stringify(activeLines.map(l=>({ref:l.reference,verrouille:l.verrouille,scannee:l.scannee,attendue:l.attendue})),null,2))" style="margin:6px 0;padding:6px 10px;font-size:11px;background:#eee;border:1px solid #ccc;border-radius:6px;color:#555">🐛 Debug verrouille</button>
 
         <div id="scanLines"></div>
 
