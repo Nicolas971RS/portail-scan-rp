@@ -1358,13 +1358,15 @@ function resumeLines(){
       activeLines = mine.map(l => {
         const att = num(l.Quantite_Attendue);
         const sc = num(l.Quantite_Scannee);
+        const verr = l.Verrouille === true || l.Verrouille === 'Oui' || l.Verrouille === '1' || l.Verrouille === 1;
         return {
           reference: (l.Reference_Article || '').toString().trim(),
           designation: l.Designation || '',
           known: !!l.Designation,
           attendue: att,
           scannee: sc,
-          ecart: sc - att
+          ecart: sc - att,
+          verrouille: verr
         };
       });
       renderScanLines();
@@ -1497,6 +1499,18 @@ function renderScanLines(flashRef){
     // Livraison : 2 colonnes — LIVRÉ (input éditable) + ✓ (validation visuelle)
     // Inventaire : 3 colonnes — SCANNÉ + STOCK THÉO + ÉCART
     if (isLiv){
+      if (l.verrouille){
+        return '<div class="scan-line" data-ref="' + escAttr(l.reference) + '" style="opacity:.75">'
+          + '<div class="sl-top"><div class="sl-ref">' + l.reference + '</div>'
+          +   '<span title="Déjà validé par le vendeur — non modifiable ici" style="font-size:16px">🔒</span></div>'
+          + '<div class="' + desCls + '">' + desTxt + '</div>'
+          + '<div class="sl-metrics" style="justify-content:center;gap:24px;">'
+          +   '<div class="m" style="flex:0 0 auto;">'
+          +     '<div class="mnum scanned">' + l.scannee + '</div>'
+          +     '<div class="mlbl">Livré (verrouillé)</div>'
+          +   '</div>'
+          + '</div></div>';
+      }
       return '<div class="scan-line" data-ref="' + escAttr(l.reference) + '">'
         + '<div class="sl-top"><div class="sl-ref">' + l.reference + '</div>'
         +   '<button class="sl-delete" data-ref="' + escAttr(l.reference) + '" title="Supprimer cette ligne" aria-label="Supprimer cette ligne">'
@@ -1542,17 +1556,7 @@ function onLivreInput(e){
   const line = activeLines.find(l => l.reference === ref);
   if (!line) return;
   line.scannee = num(e.target.value);
-  line.attendue = line.scannee; // attendue = scannee : pas de notion de prévu BL, écart toujours 0
-  line.ecart = 0;
-  const row = e.target.closest('.scan-line');
-  if (row){
-    const badge = row.querySelector('.ecart-badge');
-    badge.className = 'ecart-badge ok';
-    badge.textContent = '0';
-    // Mise à jour affichage ATTENDU BL (lecture seule)
-    const attEl = row.querySelector('.mnum.attendu');
-    if (attEl) attEl.textContent = line.scannee;
-  }
+  line.ecart = line.scannee - line.attendue; // attendue préservée (commande/vendeur), écart réel calculé
   updateStats();
   // Livraison : pas d'envoi réseau ici — la valeur sera envoyée à la clôture
 }
@@ -1563,6 +1567,7 @@ function onDeleteLine(e){
   const idx = activeLines.findIndex(l => l.reference === ref);
   if (idx === -1) return;
   const line = activeLines[idx];
+  if (line.verrouille) return; // sécurité — ne devrait jamais arriver, le bouton n'est pas rendu pour ces lignes
   if (!confirm('Supprimer la ligne ' + ref + ' ?\nÀ utiliser si cette référence a été scannée par erreur. Cette action est définitive.')) return;
   activeLines.splice(idx, 1);
   renderScanLines();
@@ -1625,6 +1630,7 @@ function clotureEnvoyerLignes(){
   if (!isLiv) return Promise.resolve(); // inventaire : lignes déjà envoyées en temps réel
   let chain = Promise.resolve();
   activeLines.forEach(line => {
+    if (line.verrouille) return; // verrouillée par le vendeur — on ne la retouche pas
     chain = chain.then(() => fetch(CONFIG.FLOWS.ENREGISTRER_LIGNE, {
       method: 'POST',
       mode: 'no-cors',
@@ -1634,7 +1640,10 @@ function clotureEnvoyerLignes(){
         ID_Session: activeSession.id,
         Reference_Article: line.reference,
         Designation: line.designation,
-        Quantite_Attendue: line.scannee,
+        // On préserve l'attendu réel (commande/vendeur) s'il existe ; on ne retombe
+        // sur "scannee" que si aucune quantité attendue n'avait été définie
+        // (cas des articles ajoutés à la volée sans commande derrière).
+        Quantite_Attendue: line.attendue > 0 ? line.attendue : line.scannee,
         Quantite_Scannee: line.scannee,
         _token: CONFIG.TOKEN
       })
