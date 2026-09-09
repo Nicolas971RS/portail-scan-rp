@@ -5082,13 +5082,14 @@ function renderRetours(){
   if(b){
     b.innerHTML=items.length?items.map(r=>{
       const bcId=r.BCId;
+      const sessId=r.SessionId;
       const numBC=bcId?(f(r,'N_BC')||'—'):'—';
       const numBL=f(r,'N_BL_Origine')||(!bcId?f(r,'N_BC'):'')||'—';
       const montant=parseFloat(f(r,'Montant_Avoir'))||0;
       return`<tr>
         <td class="mono" style="font-size:11px;white-space:nowrap">${fmtDate(f(r,'Date_Retour'))}</td>
         <td class="ref" style="${bcId?'cursor:pointer;color:var(--blue)':''}" ${bcId?`onclick="closePanel();openBCPanel(${bcId})"`:''}>${numBC}</td>
-        <td class="mono" style="font-size:11px">${numBL}</td>
+        <td class="mono" style="font-size:11px;${sessId?'cursor:pointer;color:var(--blue)':''}" ${sessId?`onclick="closePanel();openSessionPanel(${sessId})"`:''}>${numBL}</td>
         <td class="mono">${f(r,'Reference_Article')||'—'}</td>
         <td style="font-size:11.5px">${f(r,'Designation')||'—'}</td>
         <td style="text-align:center;font-weight:700">${f(r,'Quantite_Retournee')||0}</td>
@@ -5715,6 +5716,10 @@ function openRetourModal(id,numBC){
   const item=(DATA.suivi||[]).find(x=>x.ID===id||x.ID===parseInt(id));
   const lignes=(DATA.lignes||[]).filter(l=>l.BCId===id||parseInt(l.BCId)===id);
   const numBL=item?f(item,'N_x00b0_BL'):'';
+  // Le BC peut avoir été scanné (Sessions_Scan) — si oui, on garde l'ID de session
+  // pour que la colonne "N° BL origine" de Retours_Marchandise reste cliquable.
+  const sessionMatch=numBL?(DATA.sessionsScan||[]).find(s=>String(f(s,'Numero_BL')||'')===String(numBL)):null;
+  const sessionId=sessionMatch?sessionMatch.ID:null;
   const vendeurDefaut=vendeurConnecte()||f(item,'Vendeurencharge')||'';
   const optionsArticles=lignes.map((l,idx)=>{
     const ref=f(l,'R_x00e9_f_x00e9_rence')||'';
@@ -5775,6 +5780,7 @@ function openRetourModal(id,numBC){
       N_BC:numBC,
       BCId:id,
       N_BL_Origine:numBL||'',
+      SessionId:sessionId,
       Reference_Article:ref,
       Designation:design,
       Quantite_Retournee:qte,
@@ -5874,6 +5880,7 @@ function openRetourModalSession(sessionId){
     await spPost('sites/BondeCommande','Retours_Marchandise',{
       Title:`RET-BL${numBL}-${nowIso.slice(0,10)}`,
       N_BL_Origine:numBL,
+      SessionId:sessionId,
       Reference_Article:ref,
       Designation:design,
       Quantite_Retournee:qte,
