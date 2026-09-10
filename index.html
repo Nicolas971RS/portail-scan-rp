@@ -1378,29 +1378,38 @@ function afficherBandeauOrigine(blRacine){
   const banner = document.getElementById('scanOrigineBanner');
   if (!blRacine) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
   banner.style.display = 'block';
-  banner.textContent = '📋 Suite du BL ' + blRacine + ' — chargement du détail déjà livré...';
-  fetch(CONFIG.FLOWS.LISTE_SESSIONS)
-    .then(r => r.json())
-    .then(data => {
-      const all = Array.isArray(data) ? data : (data.value || []);
-      const origine = all.find(s => String(s.Numero_BL) === String(blRacine));
-      if (!origine) { banner.textContent = '📋 Suite du BL ' + blRacine + ' — détail introuvable (session d\'origine non retrouvée).'; return; }
-      return fetch(CONFIG.FLOWS.LISTE_LIGNES)
-        .then(r => r.json())
-        .then(data2 => {
-          const allLignes = Array.isArray(data2) ? data2 : (data2.value || []);
-          const lignesOrigine = allLignes.filter(l => String(lineSessionId(l)) === String(origine.ID) && num(l.Quantite_Scannee) > 0);
-          const total = lignesOrigine.reduce((a, l) => a + num(l.Quantite_Scannee), 0);
-          const detail = lignesOrigine.map(l => (l.Reference_Article || '').toString().trim() + ' ×' + num(l.Quantite_Scannee)).join(', ');
-          const mag = choiceValue(origine.Magasinier);
-          const dateStr = origine.Date_Scan ? new Date(origine.Date_Scan).toLocaleDateString('fr-FR') : '';
-          banner.innerHTML = '📋 Suite du BL <strong>' + blRacine + '</strong>'
-            + (dateStr ? ' — déjà livré le ' + dateStr : '')
-            + (mag ? ' par ' + mag : '') + ' : <strong>' + total + ' unité' + (total > 1 ? 's' : '') + '</strong>'
-            + (detail ? '<br>' + detail : '');
-        });
-    })
-    .catch(() => { banner.textContent = '📋 Suite du BL ' + blRacine + ' — impossible de charger le détail (réessaie).'; });
+  banner.textContent = '📋 Suite du BL ' + blRacine + ' — chargement de l\'historique...';
+  Promise.all([
+    fetch(CONFIG.FLOWS.LISTE_SESSIONS).then(r => r.json()),
+    fetch(CONFIG.FLOWS.LISTE_LIGNES).then(r => r.json())
+  ]).then(([data, data2]) => {
+    const all = Array.isArray(data) ? data : (data.value || []);
+    const allLignes = Array.isArray(data2) ? data2 : (data2.value || []);
+    // On remonte TOUTE la chaîne des reports précédents, pas juste le parent
+    // immédiat — un BL peut avoir été reporté plusieurs fois de suite.
+    const etapes = [];
+    const vus = new Set();
+    let racineCourante = blRacine;
+    while (racineCourante) {
+      const parent = all.find(s => String(s.Numero_BL) === String(racineCourante));
+      if (!parent || vus.has(parent.ID)) break;
+      vus.add(parent.ID);
+      etapes.push(parent);
+      racineCourante = parent.BL_Racine;
+    }
+    if (!etapes.length) { banner.textContent = '📋 Suite du BL ' + blRacine + ' — détail introuvable (session d\'origine non retrouvée).'; return; }
+    let totalGlobal = 0;
+    const detailParEtape = etapes.map(origine => {
+      const lignesOrigine = allLignes.filter(l => String(lineSessionId(l)) === String(origine.ID) && num(l.Quantite_Scannee) > 0);
+      const totalEtape = lignesOrigine.reduce((a, l) => a + num(l.Quantite_Scannee), 0);
+      totalGlobal += totalEtape;
+      const detail = lignesOrigine.map(l => (l.Reference_Article || '').toString().trim() + ' ×' + num(l.Quantite_Scannee)).join(', ');
+      const mag = choiceValue(origine.Magasinier);
+      const dateStr = origine.Date_Scan ? new Date(origine.Date_Scan).toLocaleDateString('fr-FR') : '';
+      return '<div style="margin-top:3px">• BL ' + origine.Numero_BL + (dateStr ? ' — ' + dateStr : '') + (mag ? ' par ' + mag : '') + ' : <strong>' + totalEtape + ' unité' + (totalEtape > 1 ? 's' : '') + '</strong>' + (detail ? ' (' + detail + ')' : '') + '</div>';
+    }).join('');
+    banner.innerHTML = '📋 <strong>' + totalGlobal + ' unité' + (totalGlobal > 1 ? 's' : '') + '</strong> déjà livrées au total sur ' + etapes.length + ' étape' + (etapes.length > 1 ? 's' : '') + ' précédente' + (etapes.length > 1 ? 's' : '') + ' :' + detailParEtape;
+  }).catch(() => { banner.textContent = '📋 Suite du BL ' + blRacine + ' — impossible de charger le détail (réessaie).'; });
 }
 
 function lineSessionId(l){
