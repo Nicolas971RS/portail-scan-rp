@@ -578,6 +578,7 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
             <span class="badge" id="scanSessionBadge"></span>
           </div>
           <div class="ssh-sub" id="scanSessionSub"></div>
+          <div id="scanOrigineBanner" style="display:none;margin-top:8px;padding:8px 12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;font-size:12.5px;color:#92400e;line-height:1.4"></div>
         </div>
 
         <div class="scan-reader-wrap">
@@ -1228,7 +1229,8 @@ function buildSession(s){
     vendeur: choiceValue(s.Vendeur_Emetteur),
     magasinier: choiceValue(s.Magasinier),
     aPreparer: boolValue(s.Preparation_Avance),
-    statut: choiceValue(s.Statut)
+    statut: choiceValue(s.Statut),
+    blRacine: s.BL_Racine || ''
   };
 }
 
@@ -1350,6 +1352,7 @@ function startSession(sess){
   // En mode préparation à l'avance (en cours OU déjà prête), "Terminer livraison" se fait depuis un autre endroit
   // donc on libelle le bouton principal selon le contexte
   elBtnCloturer.textContent = (showPrete || dejaPrete) ? '📦 Terminer la livraison' : 'Clôturer la session';
+  afficherBandeauOrigine(sess.blRacine);
   showScanState('active');
   renderScanLines();
   resumeLines().finally(() => startScanner());
@@ -1365,6 +1368,39 @@ function reprisPayloadExtra(){
     return { Repris_Par: selectedMagasinier };
   }
   return {};
+}
+
+// Quand une session est un "report" (reste à livrer généré par une clôture
+// partielle), BL_Racine pointe vers le BL d'origine. Sans ça, un magasinier qui
+// reprend ce report n'a aucune idée de ce qui est déjà parti — l'info existe
+// dans SharePoint (Sessions_Scan/Mouvements_Stock) mais était invisible ici.
+function afficherBandeauOrigine(blRacine){
+  const banner = document.getElementById('scanOrigineBanner');
+  if (!blRacine) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
+  banner.style.display = 'block';
+  banner.textContent = '📋 Suite du BL ' + blRacine + ' — chargement du détail déjà livré...';
+  fetch(CONFIG.FLOWS.LISTE_SESSIONS)
+    .then(r => r.json())
+    .then(data => {
+      const all = Array.isArray(data) ? data : (data.value || []);
+      const origine = all.find(s => String(s.Numero_BL) === String(blRacine));
+      if (!origine) { banner.textContent = '📋 Suite du BL ' + blRacine + ' — détail introuvable (session d\'origine non retrouvée).'; return; }
+      return fetch(CONFIG.FLOWS.LISTE_LIGNES)
+        .then(r => r.json())
+        .then(data2 => {
+          const allLignes = Array.isArray(data2) ? data2 : (data2.value || []);
+          const lignesOrigine = allLignes.filter(l => String(lineSessionId(l)) === String(origine.ID) && num(l.Quantite_Scannee) > 0);
+          const total = lignesOrigine.reduce((a, l) => a + num(l.Quantite_Scannee), 0);
+          const detail = lignesOrigine.map(l => (l.Reference_Article || '').toString().trim() + ' ×' + num(l.Quantite_Scannee)).join(', ');
+          const mag = choiceValue(origine.Magasinier);
+          const dateStr = origine.Date_Scan ? new Date(origine.Date_Scan).toLocaleDateString('fr-FR') : '';
+          banner.innerHTML = '📋 Suite du BL <strong>' + blRacine + '</strong>'
+            + (dateStr ? ' — déjà livré le ' + dateStr : '')
+            + (mag ? ' par ' + mag : '') + ' : <strong>' + total + ' unité' + (total > 1 ? 's' : '') + '</strong>'
+            + (detail ? '<br>' + detail : '');
+        });
+    })
+    .catch(() => { banner.textContent = '📋 Suite du BL ' + blRacine + ' — impossible de charger le détail (réessaie).'; });
 }
 
 function lineSessionId(l){
@@ -1777,7 +1813,10 @@ elBtnCloturePartielle.addEventListener('click', () => {
   if (!activeSession) return;
   const reste = activeLines.filter(l => l.scannee < l.attendue);
   if (reste.length === 0) {
-    alert("Toutes les lignes sont complètes — utilise plutôt « Clôturer la session ».");
+    // Tout est déjà complet — pas de cul-de-sac : on finalise directement en
+    // clôture normale plutôt que de bloquer l'utilisateur avec une erreur.
+    showToast('Tout est déjà livré — clôture directe de la session');
+    elBtnCloturer.click();
     return;
   }
   const detail = reste.map(l => '• ' + l.reference + ' (' + (l.attendue - l.scannee) + ' restant)').join('\n');
