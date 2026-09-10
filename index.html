@@ -1291,10 +1291,13 @@ function fetchScanSessions(){
     .then(r => r.json())
     .then(data => {
       const all = Array.isArray(data) ? data : (data.value || []);
-      const mine = all.filter(s =>
-        choiceValue(s.Statut) === 'En cours de scan' &&
-        choiceValue(s.Magasinier) === selectedMagasinier);
-      renderScanPicker(mine);
+      // Toutes les livraisons en cours sont visibles par tous les magasiniers —
+      // si celui qui a commencé n'est pas là quand le client revient, n'importe
+      // qui doit pouvoir reprendre. Les tiennes d'abord, celles des collègues ensuite.
+      const enCours = all.filter(s => choiceValue(s.Statut) === 'En cours de scan');
+      const mine = enCours.filter(s => choiceValue(s.Magasinier) === selectedMagasinier);
+      const autres = enCours.filter(s => choiceValue(s.Magasinier) !== selectedMagasinier);
+      renderScanPicker(mine.concat(autres));
     })
     .catch(() => {
       elScanPickerError.textContent = "Impossible de charger tes sessions — réessaie.";
@@ -1310,10 +1313,16 @@ function renderScanPicker(list){
   elScanPickerList.innerHTML = list.map((s, i) => {
     const type = choiceValue(s.Type_Operation);
     const isLiv = type.toLowerCase() === 'livraison client';
+    const mag = choiceValue(s.Magasinier);
+    const estAMoi = mag === selectedMagasinier;
+    const magBadge = mag
+      ? ('<span class="badge" style="background:' + (estAMoi ? '#e0e7ff;color:#3730a3' : '#fef3c7;color:#92400e') + '">' + (estAMoi ? 'Toi' : mag) + '</span>')
+      : '';
     return '<div class="scan-pick-card">'
       + '<div class="spc-top"><span class="spc-numero">' + docIcon(s.Numero_BL) + s.Numero_BL + '</span>'
       + '<span class="badge ' + (isLiv ? 'livraison' : 'inventaire') + '">' + type + '</span></div>'
       + (isLiv ? '<div class="sc-row"><span>Client</span><span>' + (s.Client || '') + '</span></div>' : '')
+      + (magBadge ? '<div class="sc-row"><span>Prise en charge</span>' + magBadge + '</div>' : '')
       + '<button data-idx="' + i + '">Reprendre le scan</button></div>';
   }).join('');
   elScanPickerList.querySelectorAll('button[data-idx]').forEach(b => {
@@ -1359,6 +1368,13 @@ function resumeLines(){
     .then(data => {
       const all = Array.isArray(data) ? data : (data.value || []);
       const mine = all.filter(l => String(lineSessionId(l)) === String(activeSession.id));
+      // Si quelqu'un d'autre a commencé cette livraison et n'est pas là, on protège
+      // ce qui a déjà été scanné : verrouillage automatique (lecture seule) des
+      // lignes déjà quantifiées, pour que le magasinier qui reprend voie clairement
+      // ce qui est fait et se concentre sur le RAL, sans risquer d'écraser le travail
+      // du collègue par erreur. Ce verrouillage est un affichage local — il ne touche
+      // pas le champ SharePoint Verrouille, réservé à la validation du vendeur.
+      const repriseParAutre = activeSession.magasinier && activeSession.magasinier !== selectedMagasinier;
       activeLines = mine.map(l => {
         const att = num(l.Quantite_Attendue);
         const sc = num(l.Quantite_Scannee);
@@ -1370,7 +1386,7 @@ function resumeLines(){
           attendue: att,
           scannee: sc,
           ecart: sc - att,
-          verrouille: verr
+          verrouille: verr || (repriseParAutre && sc > 0)
         };
       });
       renderScanLines();
@@ -1506,7 +1522,7 @@ function renderScanLines(flashRef){
       if (l.verrouille){
         return '<div class="scan-line" data-ref="' + escAttr(l.reference) + '" style="opacity:.75">'
           + '<div class="sl-top"><div class="sl-ref">' + l.reference + '</div>'
-          +   '<span title="Déjà validé par le vendeur — non modifiable ici" style="font-size:16px">🔒</span></div>'
+          +   '<span title="Déjà livré — non modifiable ici (validé par le vendeur ou déjà scanné par un collègue)" style="font-size:16px">🔒</span></div>'
           + '<div class="' + desCls + '">' + desTxt + '</div>'
           + '<div class="sl-metrics" style="justify-content:center;gap:24px;">'
           +   '<div class="m" style="flex:0 0 auto;">'
