@@ -1355,6 +1355,18 @@ function startSession(sess){
   resumeLines().finally(() => startScanner());
 }
 
+// Renvoie {Repris_Par: nom} si la session est finalisée par quelqu'un d'autre
+// que celui qui l'avait initialement prise en charge — sinon un objet vide.
+// Le flow Power Automate CLOTURE_SESSION doit écrire ce champ (s'il est présent)
+// dans la colonne Sessions_Scan.Repris_Par pour garder trace de la reprise,
+// sans jamais modifier le champ Magasinier d'origine.
+function reprisPayloadExtra(){
+  if (activeSession && activeSession.magasinier && activeSession.magasinier !== selectedMagasinier) {
+    return { Repris_Par: selectedMagasinier };
+  }
+  return {};
+}
+
 function lineSessionId(l){
   if (l.Session_ScanId != null) return l.Session_ScanId;
   if (l.Session_Scan && typeof l.Session_Scan === 'object')
@@ -1736,7 +1748,7 @@ elBtnCloturer.addEventListener('click', () => {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ ID_Session: activeSession.id, _token: CONFIG.TOKEN })
+        body: JSON.stringify(Object.assign({ ID_Session: activeSession.id, _token: CONFIG.TOKEN }, reprisPayloadExtra()))
       });
     })
     .then(() => {
@@ -1785,7 +1797,7 @@ elBtnCloturePartielle.addEventListener('click', () => {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ ID_Session: activeSession.id, action: 'partielle', _token: CONFIG.TOKEN })
+        body: JSON.stringify(Object.assign({ ID_Session: activeSession.id, action: 'partielle', _token: CONFIG.TOKEN }, reprisPayloadExtra()))
       });
     })
     .then(() => {
