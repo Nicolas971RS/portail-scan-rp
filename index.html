@@ -1178,6 +1178,10 @@ document.getElementById('btnRefresh').addEventListener('click', (e) => {
 });
 
 let activeSession = null;
+// Historique cumulé (étapes précédentes de la chaîne) par référence, pour
+// affichage directement sur chaque ligne pendant le scan — évite au
+// magasinier de devoir remonter au bandeau et mémoriser ce qui reste.
+let _histoRefs = {};
 let activeLines = [];
 let catalogueCache = [];
 let catalogueLoaded = false;
@@ -1374,12 +1378,13 @@ function reprisPayloadExtra(){
 // partielle), BL_Racine pointe vers le BL d'origine. Sans ça, un magasinier qui
 // reprend ce report n'a aucune idée de ce qui est déjà parti — l'info existe
 // dans SharePoint (Sessions_Scan/Mouvements_Stock) mais était invisible ici.
-function afficherBandeauOrigine(blRacine, sessionActiveId){
-  const banner = document.getElementById('scanOrigineBanner');
-  if (!blRacine) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
-  banner.style.display = 'block';
-  banner.textContent = '📋 Suite du BL ' + blRacine + ' — chargement de l\'historique...';
-  Promise.all([
+// chargerHistoriqueChaine fait le calcul une fois ; le bandeau ET chaque ligne
+// de scan (renderScanLines) s'appuient dessus, pour que le magasinier voie
+// directement sur l'article "Commandé / déjà livré" sans remonter en haut
+// d'écran et devoir s'en souvenir en scannant.
+function chargerHistoriqueChaine(blRacine, sessionActiveId){
+  if (!blRacine) return Promise.resolve(null);
+  return Promise.all([
     fetch(CONFIG.FLOWS.LISTE_SESSIONS).then(r => r.json()),
     fetch(CONFIG.FLOWS.LISTE_LIGNES).then(r => r.json())
   ]).then(([data, data2]) => {
@@ -1408,18 +1413,40 @@ function afficherBandeauOrigine(blRacine, sessionActiveId){
         if (nb === racineVraie && na !== racineVraie) return 1;
         return na.localeCompare(nb);
       });
-    if (!etapes.length) { banner.textContent = '📋 Suite du BL ' + blRacine + ' — détail introuvable (session d\'origine non retrouvée).'; return; }
+    if (!etapes.length) return null;
+    const parRef = {};
     let totalGlobal = 0;
-    const detailParEtape = etapes.map(origine => {
-      const lignesOrigine = allLignes.filter(l => String(lineSessionId(l)) === String(origine.ID) && num(l.Quantite_Scannee) > 0);
-      const totalEtape = lignesOrigine.reduce((a, l) => a + num(l.Quantite_Scannee), 0);
-      totalGlobal += totalEtape;
-      const detail = lignesOrigine.map(l => (l.Reference_Article || '').toString().trim() + ' ×' + num(l.Quantite_Scannee)).join(', ');
-      const mag = choiceValue(origine.Magasinier);
-      const dateStr = origine.Date_Scan ? new Date(origine.Date_Scan).toLocaleDateString('fr-FR') : '';
-      return '<div style="margin-top:3px">• BL ' + origine.Numero_BL + (dateStr ? ' — ' + dateStr : '') + (mag ? ' par ' + mag : '') + ' : <strong>' + totalEtape + ' unité' + (totalEtape > 1 ? 's' : '') + '</strong>' + (detail ? ' (' + detail + ')' : '') + '</div>';
-    }).join('');
-    banner.innerHTML = '📋 <strong>' + totalGlobal + ' unité' + (totalGlobal > 1 ? 's' : '') + '</strong> déjà livrées au total sur ' + etapes.length + ' étape' + (etapes.length > 1 ? 's' : '') + ' précédente' + (etapes.length > 1 ? 's' : '') + ' :' + detailParEtape;
+    etapes.forEach(origine => {
+      const lignesOrigine = allLignes.filter(l => String(lineSessionId(l)) === String(origine.ID));
+      lignesOrigine.forEach(l => {
+        const ref = (l.Reference_Article || '').toString().trim();
+        if (!ref) return;
+        const sc = num(l.Quantite_Scannee);
+        const att = num(l.Quantite_Attendue);
+        if (!parRef[ref]) parRef[ref] = { commande: 0, dejaLivre: 0 };
+        // Commandé = valeur de la toute première étape (la vraie racine),
+        // qui seule représente la quantité totale d'origine — les reports
+        // suivants n'ont que le "reste" à ce moment-là dans leur propre attendue.
+        if (String(origine.Numero_BL) === racineVraie) parRef[ref].commande = att;
+        parRef[ref].dejaLivre += sc;
+        totalGlobal += sc;
+      });
+    });
+    return { etapes, parRef, totalGlobal };
+  }).catch(() => null);
+}
+
+function afficherBandeauOrigine(blRacine, sessionActiveId){
+  const banner = document.getElementById('scanOrigineBanner');
+  _histoRefs = {};
+  if (!blRacine) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
+  banner.style.display = 'block';
+  banner.textContent = '📋 Suite du BL ' + blRacine + ' — chargement de l\'historique...';
+  chargerHistoriqueChaine(blRacine, sessionActiveId).then(histo => {
+    if (!histo) { banner.textContent = '📋 Suite du BL ' + blRacine + ' — détail introuvable (session d\'origine non retrouvée).'; return; }
+    _histoRefs = histo.parRef;
+    banner.innerHTML = '📋 <strong>' + histo.totalGlobal + ' unité' + (histo.totalGlobal > 1 ? 's' : '') + '</strong> déjà livrées sur ' + histo.etapes.length + ' étape' + (histo.etapes.length > 1 ? 's' : '') + ' précédente' + (histo.etapes.length > 1 ? 's' : '') + ' — détail par article ci-dessous.';
+    renderScanLines();
   }).catch(() => { banner.textContent = '📋 Suite du BL ' + blRacine + ' — impossible de charger le détail (réessaie).'; });
 }
 
@@ -1584,6 +1611,15 @@ function renderScanLines(flashRef){
     const ecTxt = l.ecart === 0 ? '0' : (l.ecart > 0 ? '+' + l.ecart : '' + l.ecart);
     const desCls = l.known ? 'sl-des' : 'sl-des unknown';
     const desTxt = l.known ? (l.designation || '—') : 'Référence non cataloguée';
+    // Historique cumulé des étapes précédentes pour cette référence, si la
+    // session est un report — affiché directement sur la ligne pour que le
+    // magasinier voie l'état complet sans remonter au bandeau du haut.
+    const histo = _histoRefs[l.reference];
+    const histoHtml = (histo && histo.commande > 0)
+      ? '<div style="font-size:11.5px;color:#92400e;background:#fef3c7;border-radius:6px;padding:3px 8px;margin-top:2px;display:inline-block">'
+        + 'Commandé <strong>' + histo.commande + '</strong> · déjà livré <strong>' + histo.dejaLivre + '</strong> · reste <strong>' + Math.max(0, histo.commande - histo.dejaLivre) + '</strong>'
+        + '</div>'
+      : '';
     // Livraison : 2 colonnes — LIVRÉ (input éditable) + ✓ (validation visuelle)
     // Inventaire : 3 colonnes — SCANNÉ + STOCK THÉO + ÉCART
     if (isLiv){
@@ -1592,6 +1628,7 @@ function renderScanLines(flashRef){
           + '<div class="sl-top"><div class="sl-ref">' + l.reference + '</div>'
           +   '<span title="Déjà livré — non modifiable ici (validé par le vendeur ou déjà scanné par un collègue)" style="font-size:16px">🔒</span></div>'
           + '<div class="' + desCls + '">' + desTxt + '</div>'
+          + histoHtml
           + '<div class="sl-metrics" style="justify-content:center;gap:24px;">'
           +   '<div class="m" style="flex:0 0 auto;">'
           +     '<div class="mnum scanned">' + l.scannee + '</div>'
@@ -1606,6 +1643,7 @@ function renderScanLines(flashRef){
         +   '</button></div>'
         + '<div class="sl-sync" style="display:none"></div>'
         + '<div class="' + desCls + '">' + desTxt + '</div>'
+        + histoHtml
         + '<div class="sl-metrics" style="justify-content:center;gap:24px;">'
         +   '<div class="m" style="flex:0 0 auto;">'
         +     '<input class="liv-input" type="number" min="0" inputmode="numeric" data-ref="' + escAttr(l.reference) + '" value="' + (l.scannee || '') + '" placeholder="0" style="width:72px;font-size:22px;">'
