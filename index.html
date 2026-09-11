@@ -1352,7 +1352,7 @@ function startSession(sess){
   // En mode préparation à l'avance (en cours OU déjà prête), "Terminer livraison" se fait depuis un autre endroit
   // donc on libelle le bouton principal selon le contexte
   elBtnCloturer.textContent = (showPrete || dejaPrete) ? '📦 Terminer la livraison' : 'Clôturer la session';
-  afficherBandeauOrigine(sess.blRacine);
+  afficherBandeauOrigine(sess.blRacine, sess.id);
   showScanState('active');
   renderScanLines();
   resumeLines().finally(() => startScanner());
@@ -1374,7 +1374,7 @@ function reprisPayloadExtra(){
 // partielle), BL_Racine pointe vers le BL d'origine. Sans ça, un magasinier qui
 // reprend ce report n'a aucune idée de ce qui est déjà parti — l'info existe
 // dans SharePoint (Sessions_Scan/Mouvements_Stock) mais était invisible ici.
-function afficherBandeauOrigine(blRacine){
+function afficherBandeauOrigine(blRacine, sessionActiveId){
   const banner = document.getElementById('scanOrigineBanner');
   if (!blRacine) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
   banner.style.display = 'block';
@@ -1385,18 +1385,29 @@ function afficherBandeauOrigine(blRacine){
   ]).then(([data, data2]) => {
     const all = Array.isArray(data) ? data : (data.value || []);
     const allLignes = Array.isArray(data2) ? data2 : (data2.value || []);
-    // On remonte TOUTE la chaîne des reports précédents, pas juste le parent
-    // immédiat — un BL peut avoir été reporté plusieurs fois de suite.
-    const etapes = [];
-    const vus = new Set();
-    let racineCourante = blRacine;
-    while (racineCourante) {
-      const parent = all.find(s => String(s.Numero_BL) === String(racineCourante));
-      if (!parent || vus.has(parent.ID)) break;
-      vus.add(parent.ID);
-      etapes.push(parent);
-      racineCourante = parent.BL_Racine;
-    }
+    // On regroupe par vraie racine plutôt que de remonter un seul parent — le
+    // flow peut faire pointer chaque report directement vers la racine
+    // d'origine (pas vers l'étape précédente), auquel cas un remontage
+    // ancêtre-par-ancêtre manquerait les étapes intermédiaires.
+    const racineDe = s => {
+      let courant = s, rv = s.BL_Racine;
+      const vus = new Set([s.ID]);
+      while (rv) {
+        const p = all.find(x => String(x.Numero_BL) === String(rv));
+        if (!p || vus.has(p.ID)) break;
+        vus.add(p.ID); courant = p; rv = p.BL_Racine;
+      }
+      return courant.Numero_BL;
+    };
+    const courant = all.find(s => String(s.Numero_BL) === String(blRacine)) || { Numero_BL: blRacine, BL_Racine: null, ID: null };
+    const racineVraie = racineDe(courant);
+    const etapes = all.filter(s => s.ID !== sessionActiveId && racineDe(s) === racineVraie)
+      .sort((a, b) => {
+        const na = String(a.Numero_BL || ''), nb = String(b.Numero_BL || '');
+        if (na === racineVraie && nb !== racineVraie) return -1;
+        if (nb === racineVraie && na !== racineVraie) return 1;
+        return na.localeCompare(nb);
+      });
     if (!etapes.length) { banner.textContent = '📋 Suite du BL ' + blRacine + ' — détail introuvable (session d\'origine non retrouvée).'; return; }
     let totalGlobal = 0;
     const detailParEtape = etapes.map(origine => {
