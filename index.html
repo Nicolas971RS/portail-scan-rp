@@ -1674,7 +1674,26 @@ function renderScanLines(flashRef){
 }
 
 function toggleValide(btn){
-  btn.classList.toggle('done');
+  const line=btn.closest('.scan-line');
+  const input=line?.querySelector('.liv-input');
+  const estValide=btn.classList.toggle('done');
+  if(input){
+    input.disabled=estValide;
+    input.style.opacity=estValide?'.55':'1';
+  }
+  // Une fois validé, on ne réutilise pas le même bouton (✓) pour revenir en
+  // arrière — un doigt qui glisse dessus par inadvertance déverrouillerait la
+  // quantité sans le vouloir. Il faut une icône clairement différente,
+  // délibérée, pour rouvrir la saisie.
+  if(estValide){
+    btn.innerHTML='🔓';
+    btn.title='Déverrouiller pour modifier';
+    btn.nextElementSibling.textContent='Modifier';
+  }else{
+    btn.innerHTML='✓';
+    btn.title='Marquer comme vérifié';
+    btn.nextElementSibling.textContent='Validé';
+  }
 }
 
 function onLivreInput(e){
