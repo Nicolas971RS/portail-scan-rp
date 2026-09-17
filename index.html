@@ -1045,12 +1045,16 @@ function renderSessions() {
     block.innerHTML = '<div style="font-weight:800;font-size:14px;color:#16a34a;margin-bottom:10px">✅ Prêtes à livrer — ' + pretes.length + ' commande' + (pretes.length > 1 ? 's' : '') + '</div>'
       + pretes.map(s => {
         const vendeur = choiceValue(s.Vendeur_Emetteur);
+        const complet = Number(s.Nb_Ecarts || 0) === 0 && Number(s.Nb_Articles_Scannes || 0) > 0;
         return '<div style="background:white;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">'
           + '<div>'
           + '<div style="font-weight:700;font-size:14px">' + docIcon(s.Numero_BL) + ' ' + s.Numero_BL + '</div>'
           + '<div style="font-size:12px;color:#6b7280;margin-top:2px">' + (s.Client || '') + ' · ' + vendeur + '</div>'
           + '</div>'
+          + '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">'
+          + (complet ? '<button onclick="prendreEnChargeEtLivrer(' + s.ID + ',\'' + s.Numero_BL + '\')" style="background:#fff;color:#16a34a;border:2px solid #16a34a;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer">🚚 Prendre en charge et livrer</button>' : '')
           + '<button onclick="verifierLivraisonPrete(' + s.ID + ')" style="background:#16a34a;color:white;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;cursor:pointer">📦 Vérifier & terminer</button>'
+          + '</div>'
           + '</div>';
       }).join('');
     elSessionsList.parentNode.insertBefore(block, elSessionsList);
@@ -1060,10 +1064,14 @@ function renderSessions() {
     elPretes.innerHTML = '<div style="font-weight:800;font-size:14px;color:#16a34a;margin-bottom:10px">✅ Prêtes à livrer — ' + pretes.length + ' commande' + (pretes.length > 1 ? 's' : '') + '</div>'
       + pretes.map(s => {
         const vendeur = choiceValue(s.Vendeur_Emetteur);
+        const complet = Number(s.Nb_Ecarts || 0) === 0 && Number(s.Nb_Articles_Scannes || 0) > 0;
         return '<div style="background:white;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">'
           + '<div><div style="font-weight:700;font-size:14px">' + docIcon(s.Numero_BL) + ' ' + s.Numero_BL + '</div>'
           + '<div style="font-size:12px;color:#6b7280;margin-top:2px">' + (s.Client || '') + ' · ' + vendeur + '</div></div>'
+          + '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">'
+          + (complet ? '<button onclick="prendreEnChargeEtLivrer(' + s.ID + ',\'' + s.Numero_BL + '\')" style="background:#fff;color:#16a34a;border:2px solid #16a34a;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer">🚚 Prendre en charge et livrer</button>' : '')
           + '<button onclick="verifierLivraisonPrete(' + s.ID + ')" style="background:#16a34a;color:white;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;cursor:pointer">📦 Vérifier & terminer</button>'
+          + '</div>'
           + '</div>';
       }).join('');
   }
@@ -1843,6 +1851,37 @@ function verifierLivraisonPrete(id){
   if (!sess) { showToast('Session introuvable — actualise la liste.'); return; }
   goToTab('scan');
   startSession(buildSession(sess));
+}
+
+// ── Raccourci rapide pour une préparation déjà complète (0 écart constaté à
+// la clôture de préparation) — retour terrain : forcer la réouverture de
+// l'écran de scan pour un cas déjà entièrement vérifié ajoute une friction
+// inutile, surtout dans le rush. On revérifie quand même Nb_Ecarts au moment
+// du clic (pas seulement à l'affichage) avant de clôturer directement,
+// jamais en aveugle sur une préparation incomplète.
+function prendreEnChargeEtLivrer(id, numero){
+  const sess = sessionsCache.find(s => s.ID === id);
+  if (!sess) { showToast('Session introuvable — actualise la liste.'); return; }
+  if (Number(sess.Nb_Ecarts || 0) !== 0) {
+    showToast('Écart détecté — utilise « Vérifier & terminer » pour ce BL.');
+    return;
+  }
+  if (!confirm('Confirmer que le client prend l\'intégralité de la commande ' + numero + ' telle que préparée ?')) return;
+
+  const extra = {};
+  if (choiceValue(sess.Magasinier) !== selectedMagasinier) extra.Repris_Par = selectedMagasinier;
+
+  fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(Object.assign({ ID_Session: id, _token: CONFIG.TOKEN }, extra))
+  }).then(() => {
+    showToast('✅ BL ' + numero + ' — livraison confirmée');
+    fetchSessions();
+  }).catch(() => {
+    showToast('🔴 Échec de l\'envoi — réessaie.');
+  });
 }
 
 elBtnCloturer.addEventListener('click', () => {
