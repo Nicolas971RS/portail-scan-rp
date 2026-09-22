@@ -1868,19 +1868,21 @@ function prendreEnChargeEtLivrer(id, numero){
   }
   if (!confirm('Confirmer que le client prend l\'intégralité de la commande ' + numero + ' telle que préparée ?')) return;
 
-  const extra = {};
-  if (choiceValue(sess.Magasinier) !== selectedMagasinier) extra.Repris_Par = selectedMagasinier;
+  demanderSignature(numero, sess.Client, (sig) => {
+    const extra = { Signature: sig.signature, NomSignataire: sig.nom };
+    if (choiceValue(sess.Magasinier) !== selectedMagasinier) extra.Repris_Par = selectedMagasinier;
 
-  fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify(Object.assign({ ID_Session: id, _token: CONFIG.TOKEN }, extra))
-  }).then(() => {
-    showToast('✅ BL ' + numero + ' — livraison confirmée');
-    fetchSessions();
-  }).catch(() => {
-    showToast('🔴 Échec de l\'envoi — réessaie.');
+    fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(Object.assign({ ID_Session: id, _token: CONFIG.TOKEN }, extra))
+    }).then(() => {
+      showToast('✅ BL ' + numero + ' — livraison confirmée, signé par ' + sig.nom);
+      fetchSessions();
+    }).catch(() => {
+      showToast('🔴 Échec de l\'envoi — réessaie.');
+    });
   });
 }
 
@@ -1890,39 +1892,42 @@ elBtnCloturer.addEventListener('click', () => {
   const ecarts = activeLines.filter(l => l.ecart !== 0).length;
   if (ecarts > 0 && !confirm(ecarts + " référence(s) en écart. Clôturer la session ?")) return;
 
-  elBtnCloturer.disabled = true;
-  elBtnCloturer.innerHTML = '<span class="spinner"></span> Envoi des lignes...';
+  demanderSignature(activeSession.numero, activeSession.client, (sig) => {
+    elBtnCloturer.disabled = true;
+    elBtnCloturer.innerHTML = '<span class="spinner"></span> Envoi des lignes...';
 
-  clotureEnvoyerLignes()
-    .then(() => {
-      elBtnCloturer.innerHTML = '<span class="spinner"></span> Clôture...';
-      return fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify(Object.assign({ ID_Session: activeSession.id, _token: CONFIG.TOKEN }, reprisPayloadExtra()))
+    clotureEnvoyerLignes()
+      .then(() => {
+        elBtnCloturer.innerHTML = '<span class="spinner"></span> Clôture...';
+        return fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify(Object.assign({ ID_Session: activeSession.id, _token: CONFIG.TOKEN, Signature: sig.signature, NomSignataire: sig.nom }, reprisPayloadExtra()))
+        });
+      })
+      .then(() => {
+        stopScanner();
+        const units = activeLines.reduce((a, l) => a + l.scannee, 0);
+        document.getElementById('scanSuccessText').textContent =
+          ecarts > 0 ? "Session clôturée avec écarts détectés." : "Session clôturée — tout est conforme.";
+        document.getElementById('scanSuccessRecap').innerHTML =
+          '<div><span>BL / Réf.</span><span>' + activeSession.numero + '</span></div>'
+          + '<div><span>Références</span><span>' + activeLines.length + '</span></div>'
+          + '<div><span>Unités scannées</span><span>' + units + '</span></div>'
+          + '<div><span>Écarts</span><span>' + ecarts + '</span></div>'
+          + '<div><span>Signé par</span><span>' + sig.nom + '</span></div>';
+        showScanState('success');
+      })
+      .catch(() => {
+        elScanReaderMsg.classList.remove('hidden');
+        elScanReaderMsg.textContent = "La clôture n'a pas pu être envoyée — réessaie.";
+      })
+      .finally(() => {
+        elBtnCloturer.disabled = false;
+        elBtnCloturer.textContent = 'Clôturer la session';
       });
-    })
-    .then(() => {
-      stopScanner();
-      const units = activeLines.reduce((a, l) => a + l.scannee, 0);
-      document.getElementById('scanSuccessText').textContent =
-        ecarts > 0 ? "Session clôturée avec écarts détectés." : "Session clôturée — tout est conforme.";
-      document.getElementById('scanSuccessRecap').innerHTML =
-        '<div><span>BL / Réf.</span><span>' + activeSession.numero + '</span></div>'
-        + '<div><span>Références</span><span>' + activeLines.length + '</span></div>'
-        + '<div><span>Unités scannées</span><span>' + units + '</span></div>'
-        + '<div><span>Écarts</span><span>' + ecarts + '</span></div>';
-      showScanState('success');
-    })
-    .catch(() => {
-      elScanReaderMsg.classList.remove('hidden');
-      elScanReaderMsg.textContent = "La clôture n'a pas pu être envoyée — réessaie.";
-    })
-    .finally(() => {
-      elBtnCloturer.disabled = false;
-      elBtnCloturer.textContent = 'Clôturer la session';
-    });
+  });
 });
 
 elBtnCloturePartielle.addEventListener('click', () => {
@@ -1942,38 +1947,41 @@ elBtnCloturePartielle.addEventListener('click', () => {
     detail
   )) return;
 
-  elBtnCloturePartielle.disabled = true;
-  elBtnCloturePartielle.innerHTML = '<span class="spinner"></span> Envoi des lignes...';
+  demanderSignature(activeSession.numero, activeSession.client, (sig) => {
+    elBtnCloturePartielle.disabled = true;
+    elBtnCloturePartielle.innerHTML = '<span class="spinner"></span> Envoi des lignes...';
 
-  clotureEnvoyerLignes()
-    .then(() => {
-      elBtnCloturePartielle.innerHTML = '<span class="spinner"></span> Clôture...';
-      return fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify(Object.assign({ ID_Session: activeSession.id, action: 'partielle', _token: CONFIG.TOKEN }, reprisPayloadExtra()))
+    clotureEnvoyerLignes()
+      .then(() => {
+        elBtnCloturePartielle.innerHTML = '<span class="spinner"></span> Clôture...';
+        return fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify(Object.assign({ ID_Session: activeSession.id, action: 'partielle', _token: CONFIG.TOKEN, Signature: sig.signature, NomSignataire: sig.nom }, reprisPayloadExtra()))
+        });
+      })
+      .then(() => {
+        stopScanner();
+        const units = activeLines.reduce((a, l) => a + l.scannee, 0);
+        document.getElementById('scanSuccessText').textContent =
+          "Livraison partielle enregistrée — un nouveau BL a été créé pour le reste.";
+        document.getElementById('scanSuccessRecap').innerHTML =
+          '<div><span>BL / Réf.</span><span>' + activeSession.numero + '</span></div>'
+          + '<div><span>Unités parties aujourd\'hui</span><span>' + units + '</span></div>'
+          + '<div><span>Références reportées</span><span>' + reste.length + '</span></div>'
+          + '<div><span>Signé par</span><span>' + sig.nom + '</span></div>';
+        showScanState('success');
+      })
+      .catch(() => {
+        elScanReaderMsg.classList.remove('hidden');
+        elScanReaderMsg.textContent = "La clôture partielle n'a pas pu être envoyée — réessaie.";
+      })
+      .finally(() => {
+        elBtnCloturePartielle.disabled = false;
+        elBtnCloturePartielle.textContent = 'Clôturer — reste à livrer';
       });
-    })
-    .then(() => {
-      stopScanner();
-      const units = activeLines.reduce((a, l) => a + l.scannee, 0);
-      document.getElementById('scanSuccessText').textContent =
-        "Livraison partielle enregistrée — un nouveau BL a été créé pour le reste.";
-      document.getElementById('scanSuccessRecap').innerHTML =
-        '<div><span>BL / Réf.</span><span>' + activeSession.numero + '</span></div>'
-        + '<div><span>Unités parties aujourd\'hui</span><span>' + units + '</span></div>'
-        + '<div><span>Références reportées</span><span>' + reste.length + '</span></div>';
-      showScanState('success');
-    })
-    .catch(() => {
-      elScanReaderMsg.classList.remove('hidden');
-      elScanReaderMsg.textContent = "La clôture partielle n'a pas pu être envoyée — réessaie.";
-    })
-    .finally(() => {
-      elBtnCloturePartielle.disabled = false;
-      elBtnCloturePartielle.textContent = 'Clôturer — reste à livrer';
-    });
+  });
 });
 
 document.getElementById('btnChangeSession').addEventListener('click', () => {
@@ -2018,5 +2026,114 @@ window.addEventListener('online', updateConnBanner);
 window.addEventListener('offline', updateConnBanner);
 updateConnBanner();
 </script>
+
+<div id="sigOverlay" style="display:none;position:fixed;inset:0;background:rgba(26,39,68,.55);z-index:9999;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:14px;padding:20px;width:100%;max-width:420px;max-height:92vh;overflow-y:auto">
+    <h3 style="margin:0 0 4px;font-size:17px">✍️ Signature</h3>
+    <p style="font-size:13px;color:#6b7280;margin:0 0 14px" id="sigBlLabel"></p>
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Nom du signataire *</label>
+    <input type="text" id="sigNom" placeholder="Nom de la personne qui prend en charge" style="width:100%;padding:10px 12px;border:1.5px solid #e3e5ee;border-radius:8px;font-size:14px;margin-bottom:14px;font-family:inherit;box-sizing:border-box">
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Signature *</label>
+    <div style="border:2px dashed #c7c9d6;border-radius:10px;overflow:hidden;touch-action:none;background:#fafafa">
+      <canvas id="sigCanvas" style="width:100%;height:180px;display:block"></canvas>
+    </div>
+    <p id="sigMsg" style="font-size:12.5px;color:#dc2626;margin:8px 0 0;display:none"></p>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button id="sigClear" type="button" style="flex:1;padding:12px;border-radius:8px;border:1.5px solid #e3e5ee;background:#fff;font-weight:600;cursor:pointer;font-family:inherit;font-size:13.5px">Effacer</button>
+      <button id="sigCancel" type="button" style="flex:1;padding:12px;border-radius:8px;border:1.5px solid #e3e5ee;background:#fff;font-weight:600;cursor:pointer;font-family:inherit;font-size:13.5px;color:#dc2626">Annuler la clôture</button>
+    </div>
+    <button id="sigValidate" type="button" style="width:100%;margin-top:10px;padding:14px;border:none;border-radius:8px;background:#6c63ff;color:#fff;font-weight:700;font-size:15px;cursor:pointer;font-family:inherit">Valider la signature</button>
+  </div>
+</div>
+
+<script>
+// ── Signature obligatoire à toute clôture de livraison (complète ou partielle) ──
+// Réutilisable depuis les 3 chemins de clôture : bouton normal, clôture
+// partielle, et le raccourci "Prendre en charge et livrer".
+let sigDrawing = false, sigHasStroke = false, sigCallback = null, sigCtx = null;
+const elSigOverlay = document.getElementById('sigOverlay');
+const elSigCanvas = document.getElementById('sigCanvas');
+const elSigNom = document.getElementById('sigNom');
+const elSigBlLabel = document.getElementById('sigBlLabel');
+const elSigMsg = document.getElementById('sigMsg');
+
+function sigResizeCanvas(){
+  const rect = elSigCanvas.getBoundingClientRect();
+  const ratio = window.devicePixelRatio || 1;
+  elSigCanvas.width = rect.width * ratio;
+  elSigCanvas.height = rect.height * ratio;
+  sigCtx = elSigCanvas.getContext('2d');
+  sigCtx.scale(ratio, ratio);
+  sigCtx.lineWidth = 2.5;
+  sigCtx.lineCap = 'round';
+  sigCtx.lineJoin = 'round';
+  sigCtx.strokeStyle = '#1a2744';
+}
+function sigPos(e){
+  const rect = elSigCanvas.getBoundingClientRect();
+  const p = e.touches ? e.touches[0] : e;
+  return { x: p.clientX - rect.left, y: p.clientY - rect.top };
+}
+function sigStart(e){
+  e.preventDefault();
+  sigDrawing = true;
+  const pos = sigPos(e);
+  sigCtx.beginPath();
+  sigCtx.moveTo(pos.x, pos.y);
+}
+function sigMove(e){
+  if (!sigDrawing) return;
+  e.preventDefault();
+  const pos = sigPos(e);
+  sigCtx.lineTo(pos.x, pos.y);
+  sigCtx.stroke();
+  sigHasStroke = true;
+}
+function sigEnd(){ sigDrawing = false; }
+elSigCanvas.addEventListener('mousedown', sigStart);
+elSigCanvas.addEventListener('mousemove', sigMove);
+window.addEventListener('mouseup', sigEnd);
+elSigCanvas.addEventListener('touchstart', sigStart, { passive: false });
+elSigCanvas.addEventListener('touchmove', sigMove, { passive: false });
+elSigCanvas.addEventListener('touchend', sigEnd);
+
+document.getElementById('sigClear').addEventListener('click', () => {
+  if (sigCtx) sigCtx.clearRect(0, 0, elSigCanvas.width, elSigCanvas.height);
+  sigHasStroke = false;
+  elSigMsg.style.display = 'none';
+});
+document.getElementById('sigCancel').addEventListener('click', () => {
+  elSigOverlay.style.display = 'none';
+  sigCallback = null;
+});
+document.getElementById('sigValidate').addEventListener('click', () => {
+  const nom = elSigNom.value.trim();
+  if (!nom){ elSigMsg.textContent = 'Le nom du signataire est obligatoire.'; elSigMsg.style.display = 'block'; return; }
+  if (!sigHasStroke){ elSigMsg.textContent = 'La signature est obligatoire — fais signer avant de valider.'; elSigMsg.style.display = 'block'; return; }
+  elSigMsg.style.display = 'none';
+  const dataUrl = elSigCanvas.toDataURL('image/png');
+  const cb = sigCallback;
+  elSigOverlay.style.display = 'none';
+  sigCallback = null;
+  if (cb) cb({ signature: dataUrl, nom: nom });
+});
+
+// demanderSignature(numeroBL, nomParDefaut, callback) — ouvre l'overlay ;
+// callback({signature, nom}) n'est appelé qu'une fois la signature validée.
+// Si la personne annule, callback n'est jamais appelé — la clôture n'a pas lieu.
+function demanderSignature(numeroBL, nomParDefaut, callback){
+  elSigBlLabel.textContent = 'BL / FC ' + numeroBL;
+  elSigNom.value = nomParDefaut || '';
+  elSigMsg.style.display = 'none';
+  sigCallback = callback;
+  elSigOverlay.style.display = 'flex';
+  requestAnimationFrame(() => {
+    sigResizeCanvas();
+    if (sigCtx) sigCtx.clearRect(0, 0, elSigCanvas.width, elSigCanvas.height);
+    sigHasStroke = false;
+  });
+}
+</script>
+
 </body>
 </html>
