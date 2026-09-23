@@ -1886,9 +1886,11 @@ function prendreEnChargeEtLivrer(id, numero){
 
 elBtnCloturer.addEventListener('click', () => {
   if (!activeSession) return;
-  if (activeLines.length === 0 && !confirm("Aucun article scanné. Clôturer quand même ?")) return;
   const ecarts = activeLines.filter(l => l.ecart !== 0).length;
-  if (ecarts > 0 && !confirm(ecarts + " référence(s) en écart. Clôturer la session ?")) return;
+  let msgConfirm = 'Clôturer le BL ' + activeSession.numero + ' ?\n\nCette action est définitive.';
+  if (activeLines.length === 0) msgConfirm = 'Aucun article scanné sur le BL ' + activeSession.numero + '. Clôturer quand même ?\n\nCette action est définitive.';
+  else if (ecarts > 0) msgConfirm = ecarts + ' référence(s) en écart sur le BL ' + activeSession.numero + '. Clôturer la session ?\n\nCette action est définitive.';
+  if (!confirm(msgConfirm)) return;
 
   elBtnCloturer.disabled = true;
   elBtnCloturer.innerHTML = '<span class="spinner"></span> Envoi des lignes...';
