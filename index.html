@@ -1868,21 +1868,19 @@ function prendreEnChargeEtLivrer(id, numero){
   }
   if (!confirm('Confirmer que le client prend l\'intégralité de la commande ' + numero + ' telle que préparée ?')) return;
 
-  demanderSignature(numero, sess.Client, (sig) => {
-    const extra = { Signature: sig.signature, NomSignataire: sig.nom };
-    if (choiceValue(sess.Magasinier) !== selectedMagasinier) extra.Repris_Par = selectedMagasinier;
+  const extra = {};
+  if (choiceValue(sess.Magasinier) !== selectedMagasinier) extra.Repris_Par = selectedMagasinier;
 
-    fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(Object.assign({ ID_Session: id, _token: CONFIG.TOKEN }, extra))
-    }).then(() => {
-      showToast('✅ BL ' + numero + ' — livraison confirmée, signé par ' + sig.nom);
-      fetchSessions();
-    }).catch(() => {
-      showToast('🔴 Échec de l\'envoi — réessaie.');
-    });
+  fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(Object.assign({ ID_Session: id, _token: CONFIG.TOKEN }, extra))
+  }).then(() => {
+    showToast('✅ BL ' + numero + ' — livraison confirmée');
+    fetchSessions();
+  }).catch(() => {
+    showToast('🔴 Échec de l\'envoi — réessaie.');
   });
 }
 
@@ -1892,42 +1890,39 @@ elBtnCloturer.addEventListener('click', () => {
   const ecarts = activeLines.filter(l => l.ecart !== 0).length;
   if (ecarts > 0 && !confirm(ecarts + " référence(s) en écart. Clôturer la session ?")) return;
 
-  demanderSignature(activeSession.numero, activeSession.client, (sig) => {
-    elBtnCloturer.disabled = true;
-    elBtnCloturer.innerHTML = '<span class="spinner"></span> Envoi des lignes...';
+  elBtnCloturer.disabled = true;
+  elBtnCloturer.innerHTML = '<span class="spinner"></span> Envoi des lignes...';
 
-    clotureEnvoyerLignes()
-      .then(() => {
-        elBtnCloturer.innerHTML = '<span class="spinner"></span> Clôture...';
-        return fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify(Object.assign({ ID_Session: activeSession.id, _token: CONFIG.TOKEN, Signature: sig.signature, NomSignataire: sig.nom }, reprisPayloadExtra()))
-        });
-      })
-      .then(() => {
-        stopScanner();
-        const units = activeLines.reduce((a, l) => a + l.scannee, 0);
-        document.getElementById('scanSuccessText').textContent =
-          ecarts > 0 ? "Session clôturée avec écarts détectés." : "Session clôturée — tout est conforme.";
-        document.getElementById('scanSuccessRecap').innerHTML =
-          '<div><span>BL / Réf.</span><span>' + activeSession.numero + '</span></div>'
-          + '<div><span>Références</span><span>' + activeLines.length + '</span></div>'
-          + '<div><span>Unités scannées</span><span>' + units + '</span></div>'
-          + '<div><span>Écarts</span><span>' + ecarts + '</span></div>'
-          + '<div><span>Signé par</span><span>' + sig.nom + '</span></div>';
-        showScanState('success');
-      })
-      .catch(() => {
-        elScanReaderMsg.classList.remove('hidden');
-        elScanReaderMsg.textContent = "La clôture n'a pas pu être envoyée — réessaie.";
-      })
-      .finally(() => {
-        elBtnCloturer.disabled = false;
-        elBtnCloturer.textContent = 'Clôturer la session';
+  clotureEnvoyerLignes()
+    .then(() => {
+      elBtnCloturer.innerHTML = '<span class="spinner"></span> Clôture...';
+      return fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(Object.assign({ ID_Session: activeSession.id, _token: CONFIG.TOKEN }, reprisPayloadExtra()))
       });
-  });
+    })
+    .then(() => {
+      stopScanner();
+      const units = activeLines.reduce((a, l) => a + l.scannee, 0);
+      document.getElementById('scanSuccessText').textContent =
+        ecarts > 0 ? "Session clôturée avec écarts détectés." : "Session clôturée — tout est conforme.";
+      document.getElementById('scanSuccessRecap').innerHTML =
+        '<div><span>BL / Réf.</span><span>' + activeSession.numero + '</span></div>'
+        + '<div><span>Références</span><span>' + activeLines.length + '</span></div>'
+        + '<div><span>Unités scannées</span><span>' + units + '</span></div>'
+        + '<div><span>Écarts</span><span>' + ecarts + '</span></div>';
+      showScanState('success');
+    })
+    .catch(() => {
+      elScanReaderMsg.classList.remove('hidden');
+      elScanReaderMsg.textContent = "La clôture n'a pas pu être envoyée — réessaie.";
+    })
+    .finally(() => {
+      elBtnCloturer.disabled = false;
+      elBtnCloturer.textContent = 'Clôturer la session';
+    });
 });
 
 elBtnCloturePartielle.addEventListener('click', () => {
@@ -1947,41 +1942,38 @@ elBtnCloturePartielle.addEventListener('click', () => {
     detail
   )) return;
 
-  demanderSignature(activeSession.numero, activeSession.client, (sig) => {
-    elBtnCloturePartielle.disabled = true;
-    elBtnCloturePartielle.innerHTML = '<span class="spinner"></span> Envoi des lignes...';
+  elBtnCloturePartielle.disabled = true;
+  elBtnCloturePartielle.innerHTML = '<span class="spinner"></span> Envoi des lignes...';
 
-    clotureEnvoyerLignes()
-      .then(() => {
-        elBtnCloturePartielle.innerHTML = '<span class="spinner"></span> Clôture...';
-        return fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify(Object.assign({ ID_Session: activeSession.id, action: 'partielle', _token: CONFIG.TOKEN, Signature: sig.signature, NomSignataire: sig.nom }, reprisPayloadExtra()))
-        });
-      })
-      .then(() => {
-        stopScanner();
-        const units = activeLines.reduce((a, l) => a + l.scannee, 0);
-        document.getElementById('scanSuccessText').textContent =
-          "Livraison partielle enregistrée — un nouveau BL a été créé pour le reste.";
-        document.getElementById('scanSuccessRecap').innerHTML =
-          '<div><span>BL / Réf.</span><span>' + activeSession.numero + '</span></div>'
-          + '<div><span>Unités parties aujourd\'hui</span><span>' + units + '</span></div>'
-          + '<div><span>Références reportées</span><span>' + reste.length + '</span></div>'
-          + '<div><span>Signé par</span><span>' + sig.nom + '</span></div>';
-        showScanState('success');
-      })
-      .catch(() => {
-        elScanReaderMsg.classList.remove('hidden');
-        elScanReaderMsg.textContent = "La clôture partielle n'a pas pu être envoyée — réessaie.";
-      })
-      .finally(() => {
-        elBtnCloturePartielle.disabled = false;
-        elBtnCloturePartielle.textContent = 'Clôturer — reste à livrer';
+  clotureEnvoyerLignes()
+    .then(() => {
+      elBtnCloturePartielle.innerHTML = '<span class="spinner"></span> Clôture...';
+      return fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(Object.assign({ ID_Session: activeSession.id, action: 'partielle', _token: CONFIG.TOKEN }, reprisPayloadExtra()))
       });
-  });
+    })
+    .then(() => {
+      stopScanner();
+      const units = activeLines.reduce((a, l) => a + l.scannee, 0);
+      document.getElementById('scanSuccessText').textContent =
+        "Livraison partielle enregistrée — un nouveau BL a été créé pour le reste.";
+      document.getElementById('scanSuccessRecap').innerHTML =
+        '<div><span>BL / Réf.</span><span>' + activeSession.numero + '</span></div>'
+        + '<div><span>Unités parties aujourd\'hui</span><span>' + units + '</span></div>'
+        + '<div><span>Références reportées</span><span>' + reste.length + '</span></div>';
+      showScanState('success');
+    })
+    .catch(() => {
+      elScanReaderMsg.classList.remove('hidden');
+      elScanReaderMsg.textContent = "La clôture partielle n'a pas pu être envoyée — réessaie.";
+    })
+    .finally(() => {
+      elBtnCloturePartielle.disabled = false;
+      elBtnCloturePartielle.textContent = 'Clôturer — reste à livrer';
+    });
 });
 
 document.getElementById('btnChangeSession').addEventListener('click', () => {
