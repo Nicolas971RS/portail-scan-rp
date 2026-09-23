@@ -97,6 +97,21 @@ nav.tabs button.active::after{
 }
 nav.tabs button:not([disabled]){cursor:pointer;}
 nav.tabs button:not([disabled]):hover{color:rgba(255,255,255,0.75);}
+#tabBadgeAttente{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:19px;
+  height:19px;
+  padding:0 5px;
+  margin-left:5px;
+  border-radius:10px;
+  background:var(--danger);
+  color:#fff;
+  font-size:11px;
+  font-weight:700;
+  vertical-align:middle;
+}
 nav.tabs button .soon{
   display:block;
   font-size:10px;
@@ -449,7 +464,7 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
   <div id="connBanner" style="display:none;background:var(--danger);color:white;text-align:center;font-size:12.5px;font-weight:600;padding:7px;">📡 Pas de connexion — les scans en attente s'enverront dès le retour du réseau</div>
   <nav class="tabs">
     <button class="active" data-view="emission">Émission BL</button>
-    <button data-view="liste">BL en attente</button>
+    <button data-view="liste">BL en attente <span id="tabBadgeAttente" style="display:none"></span></button>
     <button data-view="scan">Scanner</button>
   </nav>
   <main>
@@ -1081,6 +1096,18 @@ function renderSessions() {
     .sort((a, b) => new Date(a.Date_Emission) - new Date(b.Date_Emission));
 
   const totalAttente = waiting.length;
+
+  // Badge coloré sur l'onglet "BL en attente" — visible même sans être dessus,
+  // pour qu'un magasinier sache d'un coup d'œil s'il y a quelque chose à prendre.
+  const badgeAttente = document.getElementById('tabBadgeAttente');
+  if (badgeAttente) {
+    if (totalAttente > 0) {
+      badgeAttente.textContent = totalAttente;
+      badgeAttente.style.display = 'inline-flex';
+    } else {
+      badgeAttente.style.display = 'none';
+    }
+  }
 
   // Filtre de recherche — N° BL ou Client
   const searchEl = document.getElementById('searchBL');
