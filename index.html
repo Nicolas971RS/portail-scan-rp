@@ -486,10 +486,6 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
                 <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V6a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 6v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 14v-2"></path><path d="M3.27 6.96L12 12.01l8.73-5.05"></path><path d="M12 22.08V12"></path></svg>
                 <span>Inventaire physique</span>
               </div>
-              <div class="type-card" data-type="Préparation matériel">
-                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7L12 3 4 7m16 0l-8 4m8-4v10l-8 4M4 7l8 4M4 7v10l8 4m0-10v10"></path></svg>
-                <span>Préparation matériel</span>
-              </div>
             </div>
           </div>
 
@@ -553,6 +549,16 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
             <div class="pill" data-magasinier="Nicolas">Nicolas</div>
             <div class="pill" data-magasinier="Fabrice">Fabrice</div>
           </div>
+        </div>
+      </div>
+
+      <div class="card" id="cardPrepLibre" style="display:none;margin-bottom:16px;background:#f3f0ff;border:1.5px solid #7c3aed">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div>
+            <div style="font-weight:700;font-size:14px;color:#7c3aed">📦 Préparation demandée par un vendeur ou Fabrice ?</div>
+            <div style="font-size:12.5px;color:#6b5b95;margin-top:2px">Pas de BL, pas de client pour l'instant — scanne ce que tu prépares, le vendeur l'affectera ensuite.</div>
+          </div>
+          <button type="button" id="btnStartPrepLibre" style="background:#7c3aed;color:white;border:none;border-radius:8px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">📦 Démarrer une préparation</button>
         </div>
       </div>
 
@@ -693,16 +699,6 @@ function generateInventoryRef(){
   return `INV-${y}${m}${day}-${h}${min}`;
 }
 
-function generatePrepRef(){
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,'0');
-  const day = String(d.getDate()).padStart(2,'0');
-  const h = String(d.getHours()).padStart(2,'0');
-  const min = String(d.getMinutes()).padStart(2,'0');
-  return `PREP-${y}${m}${day}-${h}${min}`;
-}
-
 document.querySelectorAll('.type-card').forEach(card => {
   card.addEventListener('click', () => {
     document.querySelectorAll('.type-card').forEach(c => c.classList.remove('selected'));
@@ -714,13 +710,6 @@ document.querySelectorAll('.type-card').forEach(card => {
       elInputClient.value = '';
       elLabelNumero.innerHTML = 'Référence de session <span class="req">*</span>';
       if (!elNumero.value.trim()) elNumero.value = generateInventoryRef();
-      elFieldPreparation.style.display = 'none';
-      elCheckPreparation.checked = false;
-    } else if (selectedType === 'Préparation matériel') {
-      elFieldClient.style.display = 'none';
-      elInputClient.value = '';
-      elLabelNumero.innerHTML = 'Référence de préparation <span class="req">*</span>';
-      if (!elNumero.value.trim() || elNumero.value.startsWith('INV-')) elNumero.value = generatePrepRef();
       elFieldPreparation.style.display = 'none';
       elCheckPreparation.checked = false;
     } else {
@@ -857,7 +846,7 @@ function validateForm(){
   const numeroOk = elNumero.value.trim().length > 0;
   const typeOk = !!selectedType;
   const vendeurOk = !!selectedVendeur;
-  const clientOk = selectedType === 'Inventaire physique' || selectedType === 'Préparation matériel' || elInputClient.value.trim().length > 0;
+  const clientOk = selectedType === 'Inventaire physique' || elInputClient.value.trim().length > 0;
   elBtnSubmit.disabled = !(numeroOk && typeOk && vendeurOk && clientOk);
 }
 
@@ -900,10 +889,8 @@ elBtnSubmit.addEventListener('click', () => {
 });
 
 function emettreBLPortail(numero) {
-  const client = (selectedType === 'Inventaire physique' || selectedType === 'Préparation matériel') ? '' : elInputClient.value.trim();
-  const titre = selectedType === 'Inventaire physique' ? `${numero} - Inventaire`
-    : selectedType === 'Préparation matériel' ? `${numero} - Préparation matériel`
-    : `${numero} - ${client}`;
+  const client = selectedType === 'Inventaire physique' ? '' : elInputClient.value.trim();
+  const titre = selectedType === 'Inventaire physique' ? `${numero} - Inventaire` : `${numero} - ${client}`;
 
   const payload = {
     Titre: titre,
@@ -1003,12 +990,79 @@ function selectMagasinier(name) {
     p.classList.toggle('selected', p.dataset.magasinier === name);
   });
   localStorage.setItem('rp_magasinier', name);
+  const cardPrepLibre = document.getElementById('cardPrepLibre');
+  if (cardPrepLibre) cardPrepLibre.style.display = 'block';
   renderSessions();
 }
 
 document.querySelectorAll('.pill[data-magasinier]').forEach(pill => {
   pill.addEventListener('click', () => selectMagasinier(pill.dataset.magasinier));
 });
+
+// ── Démarrage direct d'une préparation matériel par le magasinier ──
+// Contrairement à un BL/FC classique, ici c'est le magasinier lui-même qui
+// initie tout — pas de vendeur en amont via Émission BL. La demande arrive
+// oralement ou sur un mot, le magasinier prépare puis scanne directement.
+function generatePrepRef(){
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  const h = String(d.getHours()).padStart(2,'0');
+  const min = String(d.getMinutes()).padStart(2,'0');
+  return `PREP-${y}${m}${day}-${h}${min}`;
+}
+const elBtnStartPrepLibre = document.getElementById('btnStartPrepLibre');
+if (elBtnStartPrepLibre) {
+  elBtnStartPrepLibre.addEventListener('click', () => {
+    if (!selectedMagasinier) return;
+    elBtnStartPrepLibre.disabled = true;
+    elBtnStartPrepLibre.textContent = 'Création en cours...';
+    const ref = generatePrepRef();
+    const payload = {
+      Titre: `${ref} - Préparation matériel`,
+      Type_Operation: 'Préparation matériel',
+      Numero_BL: ref,
+      Client: '',
+      Vendeur_Emetteur: '',
+      Magasinier: selectedMagasinier,
+      Date_Emission: todayISONoon(),
+      Statut: 'BL Émis',
+      _token: CONFIG.TOKEN
+    };
+    fetch(CONFIG.FLOWS.EMISSION_BL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
+    }).then(() => {
+      // La création passe par un flow no-cors (pas de réponse exploitable) —
+      // on relit la liste juste après pour retrouver la session par sa
+      // référence et sauter directement dans l'écran de scan.
+      return new Promise(resolve => setTimeout(resolve, 1400));
+    }).then(() => fetch(CONFIG.FLOWS.LISTE_SESSIONS))
+      .then(r => r.json())
+      .then(data => {
+        const sessions = Array.isArray(data) ? data : (data.value || []);
+        sessionsCache = sessions;
+        sessionsLoadedOnce = true;
+        const created = sessions.find(s => String(s.Numero_BL || '').trim() === ref);
+        if (!created) {
+          showToast('Préparation créée — retrouve-la dans « BL en attente » dans un instant.');
+          renderSessions();
+          return;
+        }
+        goToTab('scan');
+        startSession(buildSession(created));
+      })
+      .catch(() => {
+        showToast('🔴 Échec de la création — réessaie.');
+      })
+      .finally(() => {
+        elBtnStartPrepLibre.disabled = false;
+        elBtnStartPrepLibre.textContent = '📦 Démarrer une préparation';
+      });
+  });
+}
 
 function choiceValue(field) {
   if (field && typeof field === 'object') return field.Value || '';
