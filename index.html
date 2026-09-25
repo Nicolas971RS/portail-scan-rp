@@ -553,13 +553,16 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
       </div>
 
       <div class="card" id="cardPrepLibre" style="display:none;margin-bottom:16px;background:#f3f0ff;border:1.5px solid #7c3aed">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-          <div>
-            <div style="font-weight:700;font-size:14px;color:#7c3aed">📦 Préparation demandée par un vendeur ou Fabrice ?</div>
-            <div style="font-size:12.5px;color:#6b5b95;margin-top:2px">Pas de BL, pas de client pour l'instant — scanne ce que tu prépares, le vendeur l'affectera ensuite.</div>
+        <div style="font-weight:700;font-size:14px;color:#7c3aed">📦 Préparation demandée par un vendeur ou Fabrice ?</div>
+        <div style="font-size:12.5px;color:#6b5b95;margin-top:2px;margin-bottom:10px">Pas de BL, pas de client officiel pour l'instant — scanne ce que tu prépares, le vendeur l'affectera ensuite.</div>
+        <div class="field" style="margin-bottom:10px">
+          <label style="font-size:12.5px">Pour quel client (si tu le sais) ?</label>
+          <div class="autocomplete">
+            <input type="text" id="inputClientPrepLibre" placeholder="Nom du client — aide le vendeur à s'y retrouver..." autocomplete="off">
+            <div class="ac-results" id="acResultsPrepLibre"></div>
           </div>
-          <button type="button" id="btnStartPrepLibre" style="background:#7c3aed;color:white;border:none;border-radius:8px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">📦 Démarrer une préparation</button>
         </div>
+        <button type="button" id="btnStartPrepLibre" style="width:100%;background:#7c3aed;color:white;border:none;border-radius:8px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer">📦 Démarrer une préparation</button>
       </div>
 
       <div class="list-header">
@@ -992,6 +995,7 @@ function selectMagasinier(name) {
   localStorage.setItem('rp_magasinier', name);
   const cardPrepLibre = document.getElementById('cardPrepLibre');
   if (cardPrepLibre) cardPrepLibre.style.display = 'block';
+  if (!clientsLoaded) loadClients();
   renderSessions();
 }
 
@@ -1013,14 +1017,49 @@ function generatePrepRef(){
   return `PREP-${y}${m}${day}-${h}${min}`;
 }
 const elBtnStartPrepLibre = document.getElementById('btnStartPrepLibre');
+const elInputClientPrepLibre = document.getElementById('inputClientPrepLibre');
+const elAcResultsPrepLibre = document.getElementById('acResultsPrepLibre');
+if (elInputClientPrepLibre && elAcResultsPrepLibre) {
+  elInputClientPrepLibre.addEventListener('input', () => {
+    const q = normalize(elInputClientPrepLibre.value);
+    if (!q) { elAcResultsPrepLibre.classList.remove('open'); return; }
+    const matches = clientsCache
+      .filter(c => normalize(c.nom).includes(q))
+      .sort((a, b) => {
+        const an = normalize(a.nom), bn = normalize(b.nom);
+        const aStarts = an.startsWith(q), bStarts = bn.startsWith(q);
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+        return an.localeCompare(bn);
+      })
+      .slice(0, 15);
+    if (matches.length === 0) { elAcResultsPrepLibre.classList.remove('open'); return; }
+    elAcResultsPrepLibre.innerHTML = matches.map(c =>
+      `<div class="ac-item" data-nom="${c.nom.replace(/"/g,'&quot;')}">${c.nom}</div>`
+    ).join('');
+    elAcResultsPrepLibre.classList.add('open');
+  });
+  elAcResultsPrepLibre.addEventListener('click', (e) => {
+    const item = e.target.closest('.ac-item');
+    if (!item || !item.dataset.nom) return;
+    elInputClientPrepLibre.value = item.dataset.nom;
+    elAcResultsPrepLibre.classList.remove('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!elInputClientPrepLibre.contains(e.target) && !elAcResultsPrepLibre.contains(e.target)) {
+      elAcResultsPrepLibre.classList.remove('open');
+    }
+  });
+}
 if (elBtnStartPrepLibre) {
   elBtnStartPrepLibre.addEventListener('click', () => {
     if (!selectedMagasinier) return;
     elBtnStartPrepLibre.disabled = true;
     elBtnStartPrepLibre.textContent = 'Création en cours...';
     const ref = generatePrepRef();
+    const clientHint = elInputClientPrepLibre ? elInputClientPrepLibre.value.trim() : '';
     const payload = {
-      Titre: `${ref} - Préparation matériel`,
+      Titre: `${ref} - ${clientHint || 'Préparation matériel'}`,
       Type_Operation: 'Préparation matériel',
       Numero_BL: ref,
       Client: '',
@@ -1052,6 +1091,7 @@ if (elBtnStartPrepLibre) {
           return;
         }
         goToTab('scan');
+        if (elInputClientPrepLibre) elInputClientPrepLibre.value = '';
         startSession(buildSession(created));
       })
       .catch(() => {
@@ -1776,10 +1816,10 @@ function renderScanLines(flashRef){
         + histoHtml
         + '<div class="sl-metrics" style="justify-content:center;gap:24px;">'
         +   '<div class="m" style="flex:0 0 auto;">'
-        +     '<input class="liv-input" type="number" min="0" inputmode="numeric" data-ref="' + escAttr(l.reference) + '" value="' + (l.scannee || '') + '" placeholder="0" style="width:72px;font-size:22px;">'
+        +     '<input class="liv-input" type="number" min="0" inputmode="numeric" data-ref="' + escAttr(l.reference) + '" value="' + (l.scannee || '') + '" placeholder="0" style="width:72px;font-size:22px;opacity:' + (l.valide ? '.55' : '1') + '"' + (l.valide ? ' disabled' : '') + '>'
         +     '<div class="mlbl">Livré</div>'
         +   '</div>'
-        +   '<div class="m" style="flex:0 0 auto;"><button class="btn-valide" data-ref="' + escAttr(l.reference) + '" title="Marquer comme vérifié" onclick="toggleValide(this)">✓</button><div class="mlbl">Validé</div></div>'
+        +   '<div class="m" style="flex:0 0 auto;"><button class="btn-valide' + (l.valide ? ' done' : '') + '" data-ref="' + escAttr(l.reference) + '" title="' + (l.valide ? 'Déverrouiller pour modifier' : 'Marquer comme vérifié') + '" onclick="toggleValide(this)">' + (l.valide ? '🔓' : '✓') + '</button><div class="mlbl">' + (l.valide ? 'Modifier' : 'Validé') + '</div></div>'
         + '</div></div>';
     }
     return '<div class="scan-line" data-ref="' + escAttr(l.reference) + '">'
@@ -1804,9 +1844,12 @@ function renderScanLines(flashRef){
 }
 
 function toggleValide(btn){
-  const line=btn.closest('.scan-line');
-  const input=line?.querySelector('.liv-input');
+  const ref=btn.dataset.ref;
+  const line=activeLines.find(l=>l.reference===ref);
+  const row=btn.closest('.scan-line');
+  const input=row?.querySelector('.liv-input');
   const estValide=btn.classList.toggle('done');
+  if(line)line.valide=estValide; // persisté — survit à un re-rendu (ajout d'une autre ligne, etc.)
   if(input){
     input.disabled=estValide;
     input.style.opacity=estValide?'.55':'1';
