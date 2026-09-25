@@ -486,6 +486,10 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
                 <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V6a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 6v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 14v-2"></path><path d="M3.27 6.96L12 12.01l8.73-5.05"></path><path d="M12 22.08V12"></path></svg>
                 <span>Inventaire physique</span>
               </div>
+              <div class="type-card" data-type="Préparation matériel">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7L12 3 4 7m16 0l-8 4m8-4v10l-8 4M4 7l8 4M4 7v10l8 4m0-10v10"></path></svg>
+                <span>Préparation matériel</span>
+              </div>
             </div>
           </div>
 
@@ -689,6 +693,16 @@ function generateInventoryRef(){
   return `INV-${y}${m}${day}-${h}${min}`;
 }
 
+function generatePrepRef(){
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  const h = String(d.getHours()).padStart(2,'0');
+  const min = String(d.getMinutes()).padStart(2,'0');
+  return `PREP-${y}${m}${day}-${h}${min}`;
+}
+
 document.querySelectorAll('.type-card').forEach(card => {
   card.addEventListener('click', () => {
     document.querySelectorAll('.type-card').forEach(c => c.classList.remove('selected'));
@@ -702,10 +716,17 @@ document.querySelectorAll('.type-card').forEach(card => {
       if (!elNumero.value.trim()) elNumero.value = generateInventoryRef();
       elFieldPreparation.style.display = 'none';
       elCheckPreparation.checked = false;
+    } else if (selectedType === 'Préparation matériel') {
+      elFieldClient.style.display = 'none';
+      elInputClient.value = '';
+      elLabelNumero.innerHTML = 'Référence de préparation <span class="req">*</span>';
+      if (!elNumero.value.trim() || elNumero.value.startsWith('INV-')) elNumero.value = generatePrepRef();
+      elFieldPreparation.style.display = 'none';
+      elCheckPreparation.checked = false;
     } else {
       elFieldClient.style.display = 'block';
       elLabelNumero.innerHTML = 'Numéro de BL ou FC <span class="req">*</span>';
-      if (elNumero.value.startsWith('INV-')) elNumero.value = '';
+      if (elNumero.value.startsWith('INV-') || elNumero.value.startsWith('PREP-')) elNumero.value = '';
       if (!clientsLoaded) loadClients();
       if (!sessionsLoadedOnce) preloadSessionsForCheck();
       elFieldPreparation.style.display = 'block';
@@ -836,7 +857,7 @@ function validateForm(){
   const numeroOk = elNumero.value.trim().length > 0;
   const typeOk = !!selectedType;
   const vendeurOk = !!selectedVendeur;
-  const clientOk = selectedType === 'Inventaire physique' || elInputClient.value.trim().length > 0;
+  const clientOk = selectedType === 'Inventaire physique' || selectedType === 'Préparation matériel' || elInputClient.value.trim().length > 0;
   elBtnSubmit.disabled = !(numeroOk && typeOk && vendeurOk && clientOk);
 }
 
@@ -879,8 +900,10 @@ elBtnSubmit.addEventListener('click', () => {
 });
 
 function emettreBLPortail(numero) {
-  const client = selectedType === 'Inventaire physique' ? '' : elInputClient.value.trim();
-  const titre = selectedType === 'Inventaire physique' ? `${numero} - Inventaire` : `${numero} - ${client}`;
+  const client = (selectedType === 'Inventaire physique' || selectedType === 'Préparation matériel') ? '' : elInputClient.value.trim();
+  const titre = selectedType === 'Inventaire physique' ? `${numero} - Inventaire`
+    : selectedType === 'Préparation matériel' ? `${numero} - Préparation matériel`
+    : `${numero} - ${client}`;
 
   const payload = {
     Titre: titre,
@@ -990,6 +1013,14 @@ document.querySelectorAll('.pill[data-magasinier]').forEach(pill => {
 function choiceValue(field) {
   if (field && typeof field === 'object') return field.Value || '';
   return field || '';
+}
+
+// "Préparation matériel" utilise exactement le même écran de scan que
+// "Livraison client" (recherche + quantité, pas le mode inventaire) — seule
+// la création diffère (pas de client/BL obligatoire à ce stade).
+function estTypeLivraison(type){
+  const t = (type || '').toLowerCase();
+  return t === 'livraison client' || t === 'préparation matériel';
 }
 
 function boolValue(field) {
@@ -1138,7 +1169,7 @@ function renderSessions() {
 
   elSessionsList.innerHTML = waiting.map(s => {
     const type = choiceValue(s.Type_Operation);
-    const isLivraison = type.toLowerCase() === 'livraison client';
+    const isLivraison = estTypeLivraison(type);
     const vendeur = choiceValue(s.Vendeur_Emetteur);
     const dateAff = (s.Date_Emission || '').slice(0, 10).split('-').reverse().join('/');
     const aPreparer = boolValue(s.Preparation_Avance);
@@ -1363,7 +1394,7 @@ function renderScanPicker(list){
   elScanPickerEmpty.style.display = 'none';
   elScanPickerList.innerHTML = list.map((s, i) => {
     const type = choiceValue(s.Type_Operation);
-    const isLiv = type.toLowerCase() === 'livraison client';
+    const isLiv = estTypeLivraison(type);
     const mag = choiceValue(s.Magasinier);
     const estAMoi = mag === selectedMagasinier;
     const magBadge = mag
@@ -1386,7 +1417,7 @@ function startSession(sess){
   activeLines = [];
   document.getElementById('scanSessionNumero').textContent = sess.numero;
   const badge = document.getElementById('scanSessionBadge');
-  const isLiv = (sess.type || '').toLowerCase() === 'livraison client';
+  const isLiv = estTypeLivraison(sess.type);
   badge.textContent = sess.type;
   badge.className = 'badge ' + (isLiv ? 'livraison' : 'inventaire');
   document.getElementById('scanSessionSub').textContent =
@@ -1602,7 +1633,7 @@ function registerScan(rawCode){
   const code = (rawCode || '').toString().trim();
   if (!code || !activeSession) return;
   lastCountTime = Date.now();
-  const isLiv = (activeSession.type || '').toLowerCase() === 'livraison client';
+  const isLiv = estTypeLivraison(activeSession.type);
   let line = activeLines.find(l => l.reference === code);
   if (line){
     line.scannee += 1;
@@ -1649,7 +1680,7 @@ function updateStats(){
 
 function renderScanLines(flashRef){
   updateStats();
-  const isLiv = activeSession && (activeSession.type || '').toLowerCase() === 'livraison client';
+  const isLiv = activeSession && estTypeLivraison(activeSession.type);
   const attLbl = (activeSession && (activeSession.type || '').toLowerCase() === 'inventaire physique') ? 'Stock théo.' : 'Attendu';
   elScanLines.innerHTML = activeLines.map(l => {
     const ecOk = l.ecart === 0;
@@ -1816,7 +1847,7 @@ function updateSyncBadge(ref){
 
 // Envoi séquentiel de toutes les lignes mémoire vers SharePoint avant clôture (mode livraison)
 function clotureEnvoyerLignes(){
-  const isLiv = activeSession && (activeSession.type || '').toLowerCase() === 'livraison client';
+  const isLiv = activeSession && estTypeLivraison(activeSession.type);
   if (!isLiv) return Promise.resolve(); // inventaire : lignes déjà envoyées en temps réel
   let chain = Promise.resolve();
   activeLines.forEach(line => {
