@@ -1075,16 +1075,25 @@ if (elBtnStartPrepLibre) {
       body: JSON.stringify(payload)
     }).then(() => {
       // La création passe par un flow no-cors (pas de réponse exploitable) —
-      // on relit la liste juste après pour retrouver la session par sa
-      // référence et sauter directement dans l'écran de scan.
-      return new Promise(resolve => setTimeout(resolve, 1400));
-    }).then(() => fetch(CONFIG.FLOWS.LISTE_SESSIONS))
-      .then(r => r.json())
-      .then(data => {
-        const sessions = Array.isArray(data) ? data : (data.value || []);
-        sessionsCache = sessions;
-        sessionsLoadedOnce = true;
-        const created = sessions.find(s => String(s.Numero_BL || '').trim() === ref);
+      // on relit la liste pour retrouver la session par sa référence et
+      // sauter directement dans l'écran de scan. Le flow peut mettre plus ou
+      // moins longtemps à écrire dans SharePoint : plusieurs tentatives
+      // espacées plutôt qu'une seule attente fixe, pour ne pas laisser la
+      // personne bloquée sur "BL en attente" si le premier essai est trop tôt.
+      const essayer = (tentative) => new Promise(resolve => setTimeout(resolve, 1200))
+        .then(() => fetch(CONFIG.FLOWS.LISTE_SESSIONS))
+        .then(r => r.json())
+        .then(data => {
+          const sessions = Array.isArray(data) ? data : (data.value || []);
+          sessionsCache = sessions;
+          sessionsLoadedOnce = true;
+          const created = sessions.find(s => String(s.Numero_BL || '').trim() === ref);
+          if (created) return created;
+          if (tentative < 5) return essayer(tentative + 1);
+          return null;
+        });
+      return essayer(1);
+    }).then(created => {
         if (!created) {
           showToast('Préparation créée — retrouve-la dans « BL en attente » dans un instant.');
           renderSessions();
