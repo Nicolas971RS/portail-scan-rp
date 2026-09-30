@@ -556,12 +556,27 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
         <div style="font-weight:700;font-size:14px;color:#7c3aed">📦 Préparation demandée par un vendeur ou Fabrice ?</div>
         <div style="font-size:12.5px;color:#6b5b95;margin-top:2px;margin-bottom:10px">Pas de BL, pas de client officiel pour l'instant — scanne ce que tu prépares, le vendeur l'affectera ensuite.</div>
         <div class="field" style="margin-bottom:10px">
-          <label style="font-size:12.5px">Pour quel client (si tu le sais) ?</label>
+          <label style="font-size:12.5px">Demandé par (vendeur) <span class="req">*</span></label>
+          <div class="pill-group" id="prepVendeurGroup">
+            <div class="pill" data-prepvendeur="Fabrice">Fabrice</div>
+            <div class="pill" data-prepvendeur="Fred">Fred</div>
+            <div class="pill" data-prepvendeur="Fritz">Fritz</div>
+            <div class="pill" data-prepvendeur="Nicolas">Nicolas</div>
+            <div class="pill" data-prepvendeur="__direct">Client en direct</div>
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:10px">
+          <label style="font-size:12.5px">Pour quel client ?</label>
           <div class="autocomplete">
-            <input type="text" id="inputClientPrepLibre" placeholder="Nom du client — aide le vendeur à s'y retrouver..." autocomplete="off">
+            <input type="text" id="inputClientPrepLibre" placeholder="Nom de l'entreprise — choisis dans la liste ou tape librement..." autocomplete="off">
             <div class="ac-results" id="acResultsPrepLibre"></div>
           </div>
         </div>
+        <div class="field" style="margin-bottom:10px">
+          <label style="font-size:12.5px">Demandé par (côté client)</label>
+          <input type="text" id="inputContactPrepLibre" placeholder="Personne qui a demandé : chef de chantier, acheteur..." autocomplete="off">
+        </div>
+        <div id="prepLibreError" style="display:none;background:#fff;border:1px solid #b91c1c;color:#b91c1c;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:10px"></div>
         <button type="button" id="btnStartPrepLibre" style="width:100%;background:#7c3aed;color:white;border:none;border-radius:8px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer">📦 Démarrer une préparation</button>
       </div>
 
@@ -1293,13 +1308,33 @@ if (elInputClientPrepLibre && elAcResultsPrepLibre) {
     }
   });
 }
+// « Demandé par (vendeur) » : obligatoire — « Client en direct » = aucun vendeur
+let prepLibreVendeur = null;
+document.querySelectorAll('.pill[data-prepvendeur]').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('.pill[data-prepvendeur]').forEach(p => p.classList.remove('selected'));
+    pill.classList.add('selected');
+    prepLibreVendeur = pill.dataset.prepvendeur;
+    const err = document.getElementById('prepLibreError'); if (err) err.style.display = 'none';
+  });
+});
+function prepLibreErreur(msg){
+  const err = document.getElementById('prepLibreError');
+  if (err) { err.textContent = msg; err.style.display = msg ? 'block' : 'none'; }
+}
+
 if (elBtnStartPrepLibre) {
   elBtnStartPrepLibre.addEventListener('click', () => {
     if (!selectedMagasinier) return;
+    if (!prepLibreVendeur) { prepLibreErreur('Indique qui a demandé la préparation (vendeur, ou « Client en direct »).'); return; }
+    prepLibreErreur('');
     elBtnStartPrepLibre.disabled = true;
     elBtnStartPrepLibre.textContent = 'Création en cours...';
     const ref = generatePrepRef();
     const clientHint = elInputClientPrepLibre ? elInputClientPrepLibre.value.trim() : '';
+    const elContact = document.getElementById('inputContactPrepLibre');
+    const contactClient = elContact ? elContact.value.trim() : '';
+    const vendeurDemandeur = (prepLibreVendeur && prepLibreVendeur !== '__direct') ? prepLibreVendeur : '';
     const payload = {
       Titre: `${ref} - ${clientHint || 'Préparation matériel'}`,
       Type_Operation: 'Préparation matériel',
@@ -1309,7 +1344,11 @@ if (elBtnStartPrepLibre) {
       // perdue. Sans risque côté dashboard : une préparation reste « à affecter »
       // tant qu'elle porte sa référence PREP-, pas selon que Client est vide.
       Client: clientHint,
-      Vendeur_Emetteur: '',
+      // Vendeur qui a demandé la préparation — c'est lui que le dashboard
+      // proposera à la prise en charge. Vide si le client a demandé en direct.
+      Vendeur_Emetteur: vendeurDemandeur,
+      // Personne côté client (chef de chantier, acheteur...) — colonne Contact_Client
+      Contact_Client: contactClient,
       Magasinier: selectedMagasinier,
       Date_Emission: todayISONoon(),
       Statut: 'BL Émis',
@@ -1347,6 +1386,9 @@ if (elBtnStartPrepLibre) {
         }
         goToTab('scan');
         if (elInputClientPrepLibre) elInputClientPrepLibre.value = '';
+        const _ec = document.getElementById('inputContactPrepLibre'); if (_ec) _ec.value = '';
+        prepLibreVendeur = null;
+        document.querySelectorAll('.pill[data-prepvendeur]').forEach(p => p.classList.remove('selected'));
         startSession(buildSession(created));
       })
       .catch(() => {
@@ -1651,7 +1693,8 @@ function buildSession(s){
     aPreparer: boolValue(s.Preparation_Avance),
     statut: choiceValue(s.Statut),
     blRacine: s.BL_Racine || '',
-    origine: choiceValue(s.Origine) || ''
+    origine: choiceValue(s.Origine) || '',
+    contact: s.Contact_Client || ''
   };
 }
 
@@ -1772,7 +1815,10 @@ function startSession(sess){
   badge.className = 'badge ' + (isLiv ? 'livraison' : 'inventaire');
   document.getElementById('scanSessionSub').textContent =
     (sess.origine === 'Hors procédure' ? '⚠️ Hors procédure · ' : '') +
-    (isLiv && sess.client ? sess.client + ' · ' : '') + 'Magasinier : ' + (sess.magasinier || selectedMagasinier);
+    (isLiv && sess.client ? sess.client + ' · ' : '') +
+    (sess.contact ? 'demandé par ' + sess.contact + ' · ' : '') +
+    (sess.type === 'Préparation matériel' && sess.vendeur ? 'vendeur ' + sess.vendeur + ' · ' : '') +
+    'Magasinier : ' + (sess.magasinier || selectedMagasinier);
   document.getElementById('btnCloturePartielle').style.display = isLiv ? 'block' : 'none';
   // "Commande prête" visible uniquement pendant la préparation elle-même — pas quand
   // on rouvre une commande déjà "Prête à livrer" pour vérifier ce que le client a pris,
