@@ -565,6 +565,44 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
         <button type="button" id="btnStartPrepLibre" style="width:100%;background:#7c3aed;color:white;border:none;border-radius:8px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer">📦 Démarrer une préparation</button>
       </div>
 
+      <!-- Livraison hors procédure : BL/FC papier remis au client mais jamais saisi au bureau -->
+      <div class="card" id="cardHorsProc" style="display:none;margin-bottom:16px;background:#fef2f2;border:1.5px solid #b91c1c">
+        <button type="button" id="btnToggleHorsProc" style="width:100%;background:none;border:none;text-align:left;cursor:pointer;padding:0">
+          <div style="font-weight:700;font-size:14px;color:#b91c1c">⚠️ Le client a un BL / FC papier introuvable ici ?</div>
+          <div style="font-size:12.5px;color:#7f1d1d;margin-top:2px">Déclare la livraison et scanne les articles — le stock reste juste, le vendeur régularisera.</div>
+        </button>
+        <div id="hpForm" style="display:none;margin-top:12px">
+          <div class="field" style="margin-bottom:10px">
+            <label style="font-size:12.5px">N° du BL ou de la FC (sur le papier) <span class="req">*</span></label>
+            <input type="text" id="hpNumero" inputmode="numeric" autocomplete="off" placeholder="Ex : 820950 (BL) ou 156413 (FC)">
+            <div id="hpNumeroInfo" style="font-size:12px;margin-top:4px;color:#6b7280"></div>
+          </div>
+          <div class="field" style="margin-bottom:10px">
+            <label style="font-size:12.5px">Client <span class="req">*</span></label>
+            <div class="autocomplete">
+              <input type="text" id="hpClient" placeholder="Nom du client..." autocomplete="off">
+              <div class="ac-results" id="hpAcResults"></div>
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:10px">
+            <label style="font-size:12.5px">Vendeur qui a autorisé la sortie <span class="req">*</span></label>
+            <div class="pill-group" id="hpVendeurGroup">
+              <div class="pill" data-hpvendeur="Fabrice">Fabrice</div>
+              <div class="pill" data-hpvendeur="Fred">Fred</div>
+              <div class="pill" data-hpvendeur="Fritz">Fritz</div>
+              <div class="pill" data-hpvendeur="Nicolas">Nicolas</div>
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:12px">
+            <label style="font-size:12.5px">📷 Photo du BL papier signé <span style="color:#6b7280;font-weight:400">(fortement conseillé — ça te couvre)</span></label>
+            <input type="file" id="hpPhoto" accept="image/*" capture="environment" style="font-size:13px">
+            <img id="hpPhotoPreview" alt="" style="display:none;margin-top:8px;max-width:100%;max-height:180px;border-radius:8px;border:1px solid #fecaca">
+          </div>
+          <div id="hpError" style="display:none;background:#fff;border:1px solid #b91c1c;color:#b91c1c;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:10px"></div>
+          <button type="button" id="btnHorsProc" style="width:100%;background:#b91c1c;color:white;border:none;border-radius:8px;padding:12px 18px;font-size:13.5px;font-weight:700;cursor:pointer">⚠️ Déclarer et scanner les articles</button>
+        </div>
+      </div>
+
       <div class="list-header">
         <span id="listCount"></span>
         <button class="refresh-btn" id="btnRefresh" title="Rafraîchir">
@@ -995,12 +1033,216 @@ function selectMagasinier(name) {
   localStorage.setItem('rp_magasinier', name);
   const cardPrepLibre = document.getElementById('cardPrepLibre');
   if (cardPrepLibre) cardPrepLibre.style.display = 'block';
+  const cardHorsProc = document.getElementById('cardHorsProc');
+  if (cardHorsProc) cardHorsProc.style.display = 'block';
   if (!clientsLoaded) loadClients();
   renderSessions();
 }
 
 document.querySelectorAll('.pill[data-magasinier]').forEach(pill => {
   pill.addEventListener('click', () => selectMagasinier(pill.dataset.magasinier));
+});
+
+// ── Livraison hors procédure ──
+// Cas terrain : un vendeur a laissé partir la marchandise avec un BL/FC papier
+// sans l'avoir saisi. Le magasinier le déclare ici (N° du papier, client,
+// vendeur qui a autorisé, photo), puis scanne normalement : la clôture met le
+// stock à jour. Origine='Hors procédure' fait apparaître la livraison en rouge
+// dans le dashboard jusqu'à régularisation par le vendeur.
+let hpVendeur = null;
+let hpPhotoB64 = '';
+const elHpForm = document.getElementById('hpForm');
+const elHpNumero = document.getElementById('hpNumero');
+const elHpNumeroInfo = document.getElementById('hpNumeroInfo');
+const elHpClient = document.getElementById('hpClient');
+const elHpAc = document.getElementById('hpAcResults');
+const elHpPhoto = document.getElementById('hpPhoto');
+const elHpPreview = document.getElementById('hpPhotoPreview');
+const elHpError = document.getElementById('hpError');
+const elBtnHorsProc = document.getElementById('btnHorsProc');
+
+function hpShowError(msg){
+  if (!elHpError) return;
+  elHpError.innerHTML = msg || '';
+  elHpError.style.display = msg ? 'block' : 'none';
+}
+
+document.getElementById('btnToggleHorsProc')?.addEventListener('click', () => {
+  const open = elHpForm.style.display !== 'none';
+  elHpForm.style.display = open ? 'none' : 'block';
+  if (!open) { if (!clientsLoaded) loadClients(); elHpNumero.focus(); }
+});
+
+elHpNumero?.addEventListener('input', () => {
+  const n = elHpNumero.value.trim();
+  hpShowError('');
+  elHpNumeroInfo.textContent = !n ? '' : /^8/.test(n) ? '📦 Bon de livraison — le vendeur devra le lier au BC du client'
+    : /^1/.test(n) ? '🧾 Facture directe — pas de BC, régularisation pour le stock' : 'Numéro inhabituel — vérifie sur le papier';
+});
+
+document.querySelectorAll('.pill[data-hpvendeur]').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('.pill[data-hpvendeur]').forEach(p => p.classList.remove('selected'));
+    pill.classList.add('selected');
+    hpVendeur = pill.dataset.hpvendeur;
+    hpShowError('');
+  });
+});
+
+if (elHpClient && elHpAc) {
+  elHpClient.addEventListener('input', () => {
+    const q = normalize(elHpClient.value);
+    if (!q) { elHpAc.classList.remove('open'); return; }
+    const matches = clientsCache.filter(c => normalize(c.nom).includes(q))
+      .sort((a, b) => {
+        const an = normalize(a.nom), bn = normalize(b.nom);
+        const as = an.startsWith(q), bs = bn.startsWith(q);
+        if (as && !bs) return -1; if (!as && bs) return 1;
+        return an.localeCompare(bn);
+      }).slice(0, 15);
+    if (!matches.length) { elHpAc.classList.remove('open'); return; }
+    elHpAc.innerHTML = matches.map(c => `<div class="ac-item" data-nom="${c.nom.replace(/"/g,'&quot;')}">${c.nom}</div>`).join('');
+    elHpAc.classList.add('open');
+  });
+  elHpAc.addEventListener('click', (e) => {
+    const item = e.target.closest('.ac-item');
+    if (!item || !item.dataset.nom) return;
+    elHpClient.value = item.dataset.nom;
+    elHpAc.classList.remove('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!elHpClient.contains(e.target) && !elHpAc.contains(e.target)) elHpAc.classList.remove('open');
+  });
+}
+
+// Photo compressée côté téléphone (max 1600 px, JPEG) — une photo brute de
+// smartphone fait 3-6 Mo, trop lourd pour le flux et le réseau de l'entrepôt.
+function compresserPhoto(file){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const max = 1600;
+      const ratio = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * ratio);
+      c.height = Math.round(img.height * ratio);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.72));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('photo illisible')); };
+    img.src = url;
+  });
+}
+elHpPhoto?.addEventListener('change', () => {
+  const file = elHpPhoto.files && elHpPhoto.files[0];
+  hpPhotoB64 = '';
+  elHpPreview.style.display = 'none';
+  if (!file) return;
+  compresserPhoto(file).then(dataUrl => {
+    hpPhotoB64 = dataUrl.split(',')[1] || '';
+    elHpPreview.src = dataUrl;
+    elHpPreview.style.display = 'block';
+  }).catch(() => hpShowError('Photo illisible — reprends-la.'));
+});
+
+function hpResetForm(){
+  elHpNumero.value = ''; elHpNumeroInfo.textContent = '';
+  elHpClient.value = ''; hpVendeur = null; hpPhotoB64 = '';
+  document.querySelectorAll('.pill[data-hpvendeur]').forEach(p => p.classList.remove('selected'));
+  if (elHpPhoto) elHpPhoto.value = '';
+  elHpPreview.style.display = 'none';
+  elHpForm.style.display = 'none';
+  hpShowError('');
+}
+
+elBtnHorsProc?.addEventListener('click', () => {
+  if (!selectedMagasinier) { hpShowError('Sélectionne d\'abord ton nom en haut.'); return; }
+  const numero = elHpNumero.value.trim();
+  const client = elHpClient.value.trim();
+  if (!/^[0-9]{4,}$/.test(numero)) { hpShowError('Saisis le N° du BL ou de la FC (chiffres uniquement), tel qu\'il est écrit sur le papier.'); elHpNumero.focus(); return; }
+  if (!client) { hpShowError('Le client est obligatoire.'); elHpClient.focus(); return; }
+  if (!hpVendeur) { hpShowError('Indique le vendeur qui a autorisé la sortie.'); return; }
+  if (!hpPhotoB64 && !confirm('Aucune photo du BL papier.\n\nLa photo te protège en cas de litige. Continuer quand même ?')) return;
+
+  elBtnHorsProc.disabled = true;
+  elBtnHorsProc.textContent = 'Vérification...';
+  hpShowError('');
+
+  // 1) Anti-doublon : « introuvable » est parfois une erreur de recherche.
+  fetch(CONFIG.FLOWS.LISTE_SESSIONS)
+    .then(r => r.json())
+    .then(data => {
+      const sessions = Array.isArray(data) ? data : (data.value || []);
+      sessionsCache = sessions; sessionsLoadedOnce = true;
+      const existant = sessions.find(s => String(s.Numero_BL || '').trim() === numero);
+      if (existant) {
+        const st = choiceValue(existant.Statut);
+        let msg = 'Le N° <strong>' + numero + '</strong> existe déjà (' + (existant.Client || 'sans client') + ', statut « ' + st + ' »). ';
+        if (st === 'BL Émis') msg += 'Il est dans « BL en attente » : prends-le en charge normalement.';
+        else if (st === 'Prête à livrer') msg += 'Il est dans « Prêtes à livrer » : utilise « Vérifier & terminer ».';
+        else if (st === 'En cours de scan') msg += 'Il est déjà en cours de scan (onglet Scan).';
+        else msg += 'Il a déjà été livré — ne recrée rien et préviens le bureau.';
+        hpShowError(msg);
+        renderSessions();
+        throw new Error('doublon');
+      }
+      // 2) Création de la session — même flux que les autres BL
+      elBtnHorsProc.textContent = 'Création...';
+      const payload = {
+        Titre: `${numero} - ${client}`,
+        Type_Operation: 'Livraison client',
+        Numero_BL: numero,
+        Client: client,
+        Vendeur_Emetteur: hpVendeur,
+        Magasinier: selectedMagasinier,
+        Date_Emission: todayISONoon(),
+        Statut: 'BL Émis',
+        Origine: 'Hors procédure',
+        Photo_BL: hpPhotoB64,
+        Photo_BL_Nom: hpPhotoB64 ? ('BL_' + numero + '_' + Date.now() + '.jpg') : '',
+        _token: CONFIG.TOKEN
+      };
+      return fetch(CONFIG.FLOWS.EMISSION_BL, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(payload)
+      });
+    })
+    .then(() => {
+      elBtnHorsProc.textContent = 'Ouverture du scan...';
+      const essayer = (tentative) => new Promise(resolve => setTimeout(resolve, 1200))
+        .then(() => fetch(CONFIG.FLOWS.LISTE_SESSIONS))
+        .then(r => r.json())
+        .then(data => {
+          const sessions = Array.isArray(data) ? data : (data.value || []);
+          sessionsCache = sessions;
+          const created = sessions.find(s => String(s.Numero_BL || '').trim() === numero);
+          if (created) return created;
+          if (tentative < 6) return essayer(tentative + 1);
+          return null;
+        });
+      return essayer(1);
+    })
+    .then(created => {
+      hpResetForm();
+      if (!created) {
+        showToast('Livraison déclarée — retrouve-la dans « BL en attente » dans un instant.');
+        renderSessions();
+        return;
+      }
+      goToTab('scan');
+      startSession(buildSession(created));
+    })
+    .catch(err => {
+      if (err && err.message === 'doublon') return;
+      hpShowError('🔴 Échec de l\'envoi — vérifie le réseau et réessaie.');
+    })
+    .finally(() => {
+      elBtnHorsProc.disabled = false;
+      elBtnHorsProc.textContent = '⚠️ Déclarer et scanner les articles';
+    });
 });
 
 // ── Démarrage direct d'une préparation matériel par le magasinier ──
@@ -1404,7 +1646,8 @@ function buildSession(s){
     magasinier: choiceValue(s.Magasinier),
     aPreparer: boolValue(s.Preparation_Avance),
     statut: choiceValue(s.Statut),
-    blRacine: s.BL_Racine || ''
+    blRacine: s.BL_Racine || '',
+    origine: choiceValue(s.Origine) || ''
   };
 }
 
@@ -1524,6 +1767,7 @@ function startSession(sess){
   badge.textContent = sess.type;
   badge.className = 'badge ' + (isLiv ? 'livraison' : 'inventaire');
   document.getElementById('scanSessionSub').textContent =
+    (sess.origine === 'Hors procédure' ? '⚠️ Hors procédure · ' : '') +
     (isLiv && sess.client ? sess.client + ' · ' : '') + 'Magasinier : ' + (sess.magasinier || selectedMagasinier);
   document.getElementById('btnCloturePartielle').style.display = isLiv ? 'block' : 'none';
   // "Commande prête" visible uniquement pendant la préparation elle-même — pas quand
