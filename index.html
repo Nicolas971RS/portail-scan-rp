@@ -1304,7 +1304,11 @@ if (elBtnStartPrepLibre) {
       Titre: `${ref} - ${clientHint || 'Préparation matériel'}`,
       Type_Operation: 'Préparation matériel',
       Numero_BL: ref,
-      Client: '',
+      // Le client indiqué va dans le vrai champ Client : le flux reconstruit le
+      // Titre lui-même (concat), l'indication glissée seulement dans Titre était
+      // perdue. Sans risque côté dashboard : une préparation reste « à affecter »
+      // tant qu'elle porte sa référence PREP-, pas selon que Client est vide.
+      Client: clientHint,
       Vendeur_Emetteur: '',
       Magasinier: selectedMagasinier,
       Date_Emission: todayISONoon(),
