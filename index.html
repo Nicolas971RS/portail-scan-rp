@@ -1658,6 +1658,10 @@ function resumeLines(){
           designation: l.Designation || '',
           known: !!l.Designation,
           attendue: att,
+          // Attendu défini côté bureau (vendeur, Traiter, préparation) : il ne
+          // doit JAMAIS suivre le scan, sinon 1 scanné sur 4 attendus s'affiche
+          // "conforme" et la clôture renvoie Quantite_Attendue=1 (écrasement).
+          attendueFixe: att > 0,
           scannee: sc,
           ecart: sc - att,
           verrouille: verr || (repriseParAutre && sc > 0)
@@ -1740,7 +1744,9 @@ function registerScan(rawCode){
   let line = activeLines.find(l => l.reference === code);
   if (line){
     line.scannee += 1;
-    if (isLiv) line.attendue = line.scannee; // livraison : attendue suit scannee, pas de prévu BL
+    // Livraison libre (ligne créée à la volée, sans prévu) : l'attendu suit le scan.
+    // Ligne avec un attendu venu du bureau : on garde l'attendu, l'écart reste visible.
+    if (isLiv && !line.attendueFixe) line.attendue = line.scannee;
   } else {
     const cat = lookupCatalogue(code);
     const isInv = (activeSession.type || '').toLowerCase() === 'inventaire physique';
