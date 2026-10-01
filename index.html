@@ -647,6 +647,7 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
             <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path><path d="M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
           </button>
         </div>
+        <div style="font-size:12.5px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;margin-bottom:10px">Ici : les BL <strong>pris en charge mais pas encore clôturés</strong>. Chaque carte dit pourquoi il est là et quoi faire. <span style="color:#c2410c;font-weight:600">Orange</span> / <span style="color:#b91c1c;font-weight:600">rouge</span> = à vérifier (oubli de clôture ?).</div>
         <div class="banner error" id="scanPickerError"></div>
         <div id="scanPickerLoading" class="loading-state">Chargement de tes sessions...</div>
         <div id="scanPickerEmpty" class="empty-state" style="display:none;">Aucune session en cours. Prends un BL en charge depuis l'onglet « BL en attente ».</div>
@@ -1753,9 +1754,13 @@ function fetchScanSessions(){
   elScanPickerEmpty.style.display = 'none';
   elScanPickerError.classList.remove('show');
   elScanPickerList.innerHTML = '';
-  return fetch(CONFIG.FLOWS.LISTE_SESSIONS)
-    .then(r => r.json())
-    .then(data => {
+  // Les lignes servent à afficher l'avancement de chaque BL (facultatif :
+  // si elles ne se chargent pas, la liste s'affiche quand même).
+  const lignesP = fetch(CONFIG.FLOWS.LISTE_LIGNES).then(r => r.json())
+    .then(d => Array.isArray(d) ? d : (d.value || [])).catch(() => null);
+  return Promise.all([fetch(CONFIG.FLOWS.LISTE_SESSIONS).then(r => r.json()), lignesP])
+    .then(([data, lignes]) => {
+      pickerLignesCache = lignes;
       const all = Array.isArray(data) ? data : (data.value || []);
       // Toutes les livraisons en cours sont visibles par tous les magasiniers —
       // si celui qui a commencé n'est pas là quand le client revient, n'importe
@@ -1772,8 +1777,61 @@ function fetchScanSessions(){
     .finally(() => { elScanPickerLoading.style.display = 'none'; });
 }
 
+// ── Pourquoi ce BL est-il encore « en cours » ? ──
+// Un BL reste dans l'onglet Scanner tant qu'il a été pris en charge sans être
+// clôturé. Selon le cas, c'est normal (préparation à l'avance, reste à livrer)
+// ou c'est un oubli de clôture. On l'affiche clairement + depuis quand.
+let pickerLignesCache = null;
+function depuisPortail(iso){
+  if (!iso) return null;
+  const min = Math.max(0, (Date.now() - new Date(iso).getTime()) / 60000);
+  if (min < 1) return { txt: "à l'instant", min };
+  if (min < 60) return { txt: Math.round(min) + ' min', min };
+  if (min < 1440) { const h = Math.floor(min / 60), m = Math.floor(min % 60); return { txt: h + ' h' + (m ? ' ' + String(m).padStart(2, '0') : ''), min }; }
+  return { txt: Math.floor(min / 1440) + ' j', min };
+}
+function raisonEnCours(s){
+  const type = choiceValue(s.Type_Operation);
+  const prep = boolValue(s.Preparation_Avance);
+  const depuis = depuisPortail(s.Modified || s.Date_Scan || s.Created || s.Date_Emission);
+  const minutes = depuis ? depuis.min : 0;
+  const prevue = s.Date_Livraison_Prevue ? new Date(s.Date_Livraison_Prevue) : null;
+  const finJour = new Date(); finJour.setHours(23, 59, 59, 999);
+  let r;
+  if (type === 'Préparation matériel') {
+    r = { ico: '📦', titre: 'Préparation libre en cours', aFaire: 'Finir de scanner puis « Clôturer » : le vendeur l\'affectera ensuite au client.',
+          niveau: minutes > 1440 ? 'rouge' : minutes > 240 ? 'orange' : 'ok' };
+  } else if (prep) {
+    const depasse = prevue && prevue < new Date(new Date().setHours(0, 0, 0, 0));
+    r = { ico: '🗓', titre: 'Préparation à l\'avance' + (prevue ? ' — client prévu le ' + prevue.toLocaleDateString('fr-FR') : ''),
+          aFaire: 'Quand tout est prêt : « Commande prête ». Le BL passera dans « Prêtes à livrer ».',
+          niveau: depasse ? 'orange' : 'ok', note: depasse ? 'Date prévue dépassée' : '' };
+  } else if (s.BL_Racine) {
+    r = { ico: '✂️', titre: 'Reste à livrer (suite du BL ' + s.BL_Racine + ')', aFaire: 'Le client revient chercher le reste : scanner ce qu\'il emporte puis clôturer.',
+          niveau: minutes > 2880 ? 'orange' : 'ok' };
+  } else if (choiceValue(s.Origine) === 'Hors procédure') {
+    r = { ico: '⚠️', titre: 'Livraison hors procédure en cours', aFaire: 'Finir le scan puis « Clôturer la session ».',
+          niveau: minutes > 120 ? 'rouge' : 'orange' };
+  } else {
+    r = { ico: '🚚', titre: 'Livraison commencée, pas clôturée', aFaire: 'Si le client est parti : reprendre et « Clôturer la session ».',
+          niveau: minutes > 1440 ? 'rouge' : minutes > 120 ? 'orange' : 'ok',
+          note: minutes > 120 ? 'Oubli de clôture ?' : '' };
+  }
+  r.depuis = depuis ? depuis.txt : '';
+  return r;
+}
+function avancementSession(id){
+  if (!Array.isArray(pickerLignesCache)) return null;
+  const mine = pickerLignesCache.filter(l => String(lineSessionId(l)) === String(id));
+  const scannees = mine.filter(l => num(l.Quantite_Scannee) > 0).length;
+  const unites = mine.reduce((a, l) => a + num(l.Quantite_Scannee), 0);
+  return { total: mine.length, scannees, unites };
+}
+
 function renderScanPicker(list){
-  elScanPickerCount.textContent = list.length + (list.length > 1 ? ' sessions en cours' : ' session en cours');
+  const aVerifier = list.filter(s => raisonEnCours(s).niveau !== 'ok').length;
+  elScanPickerCount.textContent = list.length + (list.length > 1 ? ' sessions en cours' : ' session en cours')
+    + (aVerifier ? ' — ' + aVerifier + ' à vérifier' : '');
   const badgeScan = document.getElementById('tabBadgeScan');
   if (badgeScan) {
     if (list.length > 0) {
@@ -1793,11 +1851,22 @@ function renderScanPicker(list){
     const magBadge = mag
       ? ('<span class="badge" style="background:' + (estAMoi ? '#e0e7ff;color:#3730a3' : '#fef3c7;color:#92400e') + '">' + (estAMoi ? 'Toi' : mag) + '</span>')
       : '';
-    return '<div class="scan-pick-card">'
+    const rs = raisonEnCours(s);
+    const couleurs = { ok: ['#eef2ff', '#3730a3', '#c7d2fe'], orange: ['#fff7ed', '#c2410c', '#fdba74'], rouge: ['#fef2f2', '#b91c1c', '#fca5a5'] }[rs.niveau];
+    const av = avancementSession(s.ID);
+    const avTxt = !av ? '' : (av.total === 0 ? 'Rien scanné pour l\'instant'
+      : av.scannees + '/' + av.total + ' référence' + (av.total > 1 ? 's' : '') + ' scannée' + (av.scannees > 1 ? 's' : '') + ' · ' + av.unites + ' unité' + (av.unites > 1 ? 's' : ''));
+    return '<div class="scan-pick-card" style="border-left:5px solid ' + couleurs[1] + '">'
       + '<div class="spc-top"><span class="spc-numero">' + docIcon(s.Numero_BL) + s.Numero_BL + '</span>'
       + '<span class="badge ' + (isLiv ? 'livraison' : 'inventaire') + '">' + type + '</span></div>'
-      + (isLiv ? '<div class="sc-row"><span>Client</span><span>' + (s.Client || '') + '</span></div>' : '')
-      + (magBadge ? '<div class="sc-row"><span>Prise en charge</span>' + magBadge + '</div>' : '')
+      + '<div style="background:' + couleurs[0] + ';border:1px solid ' + couleurs[2] + ';border-radius:8px;padding:8px 10px;margin-bottom:8px">'
+      +   '<div style="font-weight:700;font-size:13px;color:' + couleurs[1] + '">' + rs.ico + ' ' + rs.titre
+      +     (rs.note ? ' <span style="background:' + couleurs[1] + ';color:#fff;border-radius:9px;padding:1px 7px;font-size:11px;margin-left:4px">' + rs.note + '</span>' : '') + '</div>'
+      +   '<div style="font-size:12px;color:#475569;margin-top:3px">👉 ' + rs.aFaire + '</div>'
+      + '</div>'
+      + (isLiv && s.Client ? '<div class="sc-row"><span>Client</span><span>' + s.Client + '</span></div>' : '')
+      + (magBadge ? '<div class="sc-row"><span>Prise en charge</span><span>' + magBadge + (rs.depuis ? ' <span style="font-weight:600;color:' + couleurs[1] + '">depuis ' + rs.depuis + '</span>' : '') + '</span></div>' : '')
+      + (avTxt ? '<div class="sc-row"><span>Avancement</span><span>' + avTxt + '</span></div>' : '')
       + '<button data-idx="' + i + '">Reprendre le scan</button></div>';
   }).join('');
   elScanPickerList.querySelectorAll('button[data-idx]').forEach(b => {
