@@ -1958,7 +1958,11 @@ function resumeLines(){
           attendueFixe: att > 0,
           scannee: sc,
           ecart: sc - att,
-          verrouille: verr || (repriseParAutre && sc > 0)
+          verrouille: verr || (repriseParAutre && sc > 0),
+          // Verrou SharePoint (vendeur) = article déjà livré sur un BL réouvert :
+          // cette ligne ne doit plus JAMAIS être modifiée ni renvoyée. Le verrou
+          // de reprise ci-dessus n'est qu'un garde-fou d'affichage.
+          verrouilleSP: verr
         };
       });
       renderScanLines();
@@ -2030,12 +2034,19 @@ function feedbackScan(){
   } catch(e){}
 }
 
+// Ligne à utiliser pour une référence : jamais une ligne verrouillée côté
+// SharePoint (article déjà livré). S'il n'y a qu'une ligne verrouillée pour
+// cette référence, un nouveau scan crée une ligne à part (le rajout).
+function ligneParRef(ref){
+  return activeLines.find(l => l.reference === ref && !l.verrouilleSP) || null;
+}
+
 function registerScan(rawCode){
   const code = (rawCode || '').toString().trim();
   if (!code || !activeSession) return;
   lastCountTime = Date.now();
   const isLiv = estTypeLivraison(activeSession.type);
-  let line = activeLines.find(l => l.reference === code);
+  let line = ligneParRef(code);
   if (line){
     line.scannee += 1;
     // Livraison libre (ligne créée à la volée, sans prévu) : l'attendu suit le scan.
@@ -2154,7 +2165,7 @@ function renderScanLines(flashRef){
 
 function toggleValide(btn){
   const ref=btn.dataset.ref;
-  const line=activeLines.find(l=>l.reference===ref);
+  const line=ligneParRef(ref)||activeLines.find(l=>l.reference===ref);
   const row=btn.closest('.scan-line');
   const input=row?.querySelector('.liv-input');
   const estValide=btn.classList.toggle('done');
@@ -2180,7 +2191,7 @@ function toggleValide(btn){
 
 function onLivreInput(e){
   const ref = e.target.dataset.ref;
-  const line = activeLines.find(l => l.reference === ref);
+  const line = ligneParRef(ref);
   if (!line) return;
   line.scannee = num(e.target.value);
   line.ecart = line.scannee - line.attendue; // attendue préservée (commande/vendeur), écart réel calculé
@@ -2191,7 +2202,7 @@ function onLivreInput(e){
 function onDeleteLine(e){
   const btn = e.currentTarget;
   const ref = btn.dataset.ref;
-  const idx = activeLines.findIndex(l => l.reference === ref);
+  const idx = activeLines.findIndex(l => l.reference === ref && !l.verrouilleSP);
   if (idx === -1) return;
   const line = activeLines[idx];
   if (line.verrouille) return; // sécurité — ne devrait jamais arriver, le bouton n'est pas rendu pour ces lignes
@@ -2231,7 +2242,7 @@ function enqueueLinePost(action, line){
 function updateSyncBadge(ref){
   const row = elScanLines.querySelector('.scan-line[data-ref="' + cssEsc(ref) + '"]');
   if (!row) return;
-  const line = activeLines.find(l => l.reference === ref);
+  const line = ligneParRef(ref) || activeLines.find(l => l.reference === ref);
   const badge = row.querySelector('.sl-sync');
   if (!badge || !line) return;
   if (line.syncStatus === 'error') {
@@ -2257,7 +2268,10 @@ function clotureEnvoyerLignes(){
   if (!isLiv) return Promise.resolve(); // inventaire : lignes déjà envoyées en temps réel
   let chain = Promise.resolve();
   activeLines.forEach(line => {
-    if (line.verrouille) return; // verrouillée par le vendeur — on ne la retouche pas
+    // Seules les lignes verrouillées par le vendeur (déjà livrées) sont exclues.
+    // Une ligne « protégée » en reprise (collègue absent) est renvoyée : sinon
+    // les scans ajoutés dessus pendant la reprise étaient perdus sans alerte.
+    if (line.verrouilleSP) return;
     chain = chain.then(() => fetch(CONFIG.FLOWS.ENREGISTRER_LIGNE, {
       method: 'POST',
       mode: 'no-cors',
