@@ -2106,8 +2106,16 @@ function feedbackScan(){
 // Ligne à utiliser pour une référence : jamais une ligne verrouillée côté
 // SharePoint (article déjà livré). S'il n'y a qu'une ligne verrouillée pour
 // cette référence, un nouveau scan crée une ligne à part (le rajout).
+// Références comparées sans tenir compte de la casse ni des espaces :
+// « 040v40 » (saisie manuelle au téléphone, étiquette en minuscules…) doit
+// tomber sur la ligne « 040V40 » du BL. Avant, une différence de casse créait
+// une 2e ligne ; or SharePoint compare le texte SANS la casse : à la clôture,
+// le flux mettait à jour la même ligne deux fois et la dernière écriture
+// (l'originale, à 0) écrasait le scan → faux écart « manque 1 ».
+function normRef(r){ return (r || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '').toUpperCase(); }
 function ligneParRef(ref){
-  return activeLines.find(l => l.reference === ref && !l.verrouilleSP) || null;
+  const n = normRef(ref);
+  return activeLines.find(l => normRef(l.reference) === n && !l.verrouilleSP) || null;
 }
 
 function registerScan(rawCode){
@@ -2126,7 +2134,7 @@ function registerScan(rawCode){
     const isInv = (activeSession.type || '').toLowerCase() === 'inventaire physique';
     const initAtt = isInv ? (cat ? cat.stock : 0) : 1;
     line = {
-      reference: code,
+      reference: cat ? cat.ref : code,
       designation: cat ? cat.designation : '',
       known: !!cat,
       attendue: initAtt,
@@ -2237,6 +2245,17 @@ function toggleValide(btn){
   const line=ligneParRef(ref)||activeLines.find(l=>l.reference===ref);
   const row=btn.closest('.scan-line');
   const input=row?.querySelector('.liv-input');
+  // Valider une ligne incomplète laissait la quantité à 0 → faux écart à la
+  // clôture alors que le client avait bien emporté l'article. On demande.
+  if(line&&!btn.classList.contains('done')&&activeSession&&estTypeLivraison(activeSession.type)&&line.attendue>0&&line.scannee<line.attendue){
+    const lib=line.reference+(line.designation?' — '+line.designation:'');
+    if(confirm(lib+'\n\nLivré : '+line.scannee+' sur '+line.attendue+' attendu(s).\n\nOK = le client emporte bien les '+line.attendue+'\nAnnuler = garder '+line.scannee+' (sera noté en écart)')){
+      line.scannee=line.attendue;
+      line.ecart=0;
+      if(input)input.value=line.scannee;
+      if(typeof updateStats==='function')updateStats();
+    }
+  }
   const estValide=btn.classList.toggle('done');
   if(line)line.valide=estValide; // persisté — survit à un re-rendu (ajout d'une autre ligne, etc.)
   if(input){
@@ -2332,9 +2351,26 @@ function updateSyncBadge(ref){
 }
 
 // Envoi séquentiel de toutes les lignes mémoire vers SharePoint avant clôture (mode livraison)
+// Deux lignes non verrouillées de même référence (casse/espace différents)
+// seraient vues comme UNE seule par SharePoint : on les fusionne avant envoi.
+function fusionnerDoublonsRef(){
+  const vues = {};
+  activeLines = activeLines.filter(l => {
+    if (l.verrouilleSP) return true;
+    const k = normRef(l.reference);
+    const prem = vues[k];
+    if (!prem) { vues[k] = l; return true; }
+    prem.scannee += l.scannee;
+    if (l.attendueFixe && !prem.attendueFixe) { prem.attendue = l.attendue; prem.attendueFixe = true; prem.reference = l.reference; if (l.designation) prem.designation = l.designation; }
+    else if (!prem.attendueFixe && !l.attendueFixe) prem.attendue += l.attendue;
+    prem.ecart = prem.scannee - prem.attendue;
+    return false;
+  });
+}
 function clotureEnvoyerLignes(){
   const isLiv = activeSession && estTypeLivraison(activeSession.type);
   if (!isLiv) return Promise.resolve(); // inventaire : lignes déjà envoyées en temps réel
+  fusionnerDoublonsRef();
   let chain = Promise.resolve();
   activeLines.forEach(line => {
     // Seules les lignes verrouillées par le vendeur (déjà livrées) sont exclues.
@@ -2443,10 +2479,15 @@ function prendreEnChargeEtLivrer(id, numero){
 
 elBtnCloturer.addEventListener('click', () => {
   if (!activeSession) return;
-  const ecarts = activeLines.filter(l => l.ecart !== 0).length;
+  fusionnerDoublonsRef();
+  const lignesEcart = activeLines.filter(l => !l.verrouilleSP && l.ecart !== 0);
+  const ecarts = lignesEcart.length;
   let msgConfirm = 'Clôturer le BL ' + activeSession.numero + ' ?\n\nCette action est définitive.';
   if (activeLines.length === 0) msgConfirm = 'Aucun article scanné sur le BL ' + activeSession.numero + '. Clôturer quand même ?\n\nCette action est définitive.';
-  else if (ecarts > 0) msgConfirm = ecarts + ' référence(s) en écart sur le BL ' + activeSession.numero + '. Clôturer la session ?\n\nCette action est définitive.';
+  else if (ecarts > 0) msgConfirm = ecarts + ' référence(s) en écart sur le BL ' + activeSession.numero + ' :\n\n'
+    + lignesEcart.slice(0, 8).map(l => '• ' + l.reference + (l.designation ? ' ' + l.designation.slice(0, 28) : '') + ' : livré ' + l.scannee + ' / attendu ' + l.attendue).join('\n')
+    + (ecarts > 8 ? '\n… et ' + (ecarts - 8) + ' autre(s)' : '')
+    + '\n\nSi le client a bien tout emporté, Annuler et corriger la quantité.\nClôturer quand même ? (définitif)';
   if (!confirm(msgConfirm)) return;
 
   elBtnCloturer.disabled = true;
