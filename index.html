@@ -2017,6 +2017,8 @@ function resumeLines(){
         const sc = num(l.Quantite_Scannee);
         const verr = l.Verrouille === true || l.Verrouille === 'Oui' || l.Verrouille === '1' || l.Verrouille === 1;
         return {
+          id: l.ID || l.Id || null,          // ID SharePoint : envoyé au flux pour viser LA bonne ligne
+          uid: ++_lineUid,
           reference: (l.Reference_Article || '').toString().trim(),
           designation: l.Designation || '',
           known: !!l.Designation,
@@ -2113,9 +2115,17 @@ function feedbackScan(){
 // le flux mettait à jour la même ligne deux fois et la dernière écriture
 // (l'originale, à 0) écrasait le scan → faux écart « manque 1 ».
 function normRef(r){ return (r || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '').toUpperCase(); }
+let _lineUid = 0;
+// Plusieurs lignes non verrouillées de même référence (ex. 2 déjà prévus + 3
+// ajoutés) : le scan remplit d'abord celle qui n'est pas encore complète.
 function ligneParRef(ref){
   const n = normRef(ref);
-  return activeLines.find(l => normRef(l.reference) === n && !l.verrouilleSP) || null;
+  const c = activeLines.filter(l => normRef(l.reference) === n && !l.verrouilleSP);
+  return c.find(l => l.attendueFixe && l.scannee < l.attendue) || c[0] || null;
+}
+function ligneDepuisEl(el){
+  const uid = el && el.dataset ? el.dataset.uid : null;
+  return (uid && activeLines.find(l => String(l.uid) === String(uid))) || ligneParRef(el && el.dataset ? el.dataset.ref : '');
 }
 
 function registerScan(rawCode){
@@ -2134,6 +2144,7 @@ function registerScan(rawCode){
     const isInv = (activeSession.type || '').toLowerCase() === 'inventaire physique';
     const initAtt = isInv ? (cat ? cat.stock : 0) : 1;
     line = {
+      uid: ++_lineUid,
       reference: cat ? cat.ref : code,
       designation: cat ? cat.designation : '',
       known: !!cat,
@@ -2170,6 +2181,7 @@ function updateStats(){
 }
 
 function renderScanLines(flashRef){
+  activeLines.forEach(l => { if (!l.uid) l.uid = ++_lineUid; });
   updateStats();
   const isLiv = activeSession && estTypeLivraison(activeSession.type);
   const attLbl = (activeSession && (activeSession.type || '').toLowerCase() === 'inventaire physique') ? 'Stock théo.' : 'Attendu';
@@ -2205,7 +2217,7 @@ function renderScanLines(flashRef){
       }
       return '<div class="scan-line" data-ref="' + escAttr(l.reference) + '">'
         + '<div class="sl-top"><div class="sl-ref">' + l.reference + '</div>'
-        +   '<button class="sl-delete" data-ref="' + escAttr(l.reference) + '" title="Supprimer cette ligne" aria-label="Supprimer cette ligne">'
+        +   '<button class="sl-delete" data-ref="' + escAttr(l.reference) + '" data-uid="' + (l.uid || '') + '" title="Supprimer cette ligne" aria-label="Supprimer cette ligne">'
         +     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>'
         +   '</button></div>'
         + '<div class="sl-sync" style="display:none"></div>'
@@ -2213,15 +2225,15 @@ function renderScanLines(flashRef){
         + histoHtml
         + '<div class="sl-metrics" style="justify-content:center;gap:24px;">'
         +   '<div class="m" style="flex:0 0 auto;">'
-        +     '<input class="liv-input" type="number" min="0" inputmode="numeric" data-ref="' + escAttr(l.reference) + '" value="' + (l.scannee || '') + '" placeholder="0" style="width:72px;font-size:22px;opacity:' + (l.valide ? '.55' : '1') + '"' + (l.valide ? ' disabled' : '') + '>'
+        +     '<input class="liv-input" type="number" min="0" inputmode="numeric" data-ref="' + escAttr(l.reference) + '" data-uid="' + (l.uid || '') + '" value="' + (l.scannee || '') + '" placeholder="0" style="width:72px;font-size:22px;opacity:' + (l.valide ? '.55' : '1') + '"' + (l.valide ? ' disabled' : '') + '>'
         +     '<div class="mlbl">Livré</div>'
         +   '</div>'
-        +   '<div class="m" style="flex:0 0 auto;"><button class="btn-valide' + (l.valide ? ' done' : '') + '" data-ref="' + escAttr(l.reference) + '" title="' + (l.valide ? 'Déverrouiller pour modifier' : 'Marquer comme vérifié') + '" onclick="toggleValide(this)">' + (l.valide ? '🔓' : '✓') + '</button><div class="mlbl">' + (l.valide ? 'Modifier' : 'Validé') + '</div></div>'
+        +   '<div class="m" style="flex:0 0 auto;"><button class="btn-valide' + (l.valide ? ' done' : '') + '" data-ref="' + escAttr(l.reference) + '" data-uid="' + (l.uid || '') + '" title="' + (l.valide ? 'Déverrouiller pour modifier' : 'Marquer comme vérifié') + '" onclick="toggleValide(this)">' + (l.valide ? '🔓' : '✓') + '</button><div class="mlbl">' + (l.valide ? 'Modifier' : 'Validé') + '</div></div>'
         + '</div></div>';
     }
     return '<div class="scan-line" data-ref="' + escAttr(l.reference) + '">'
       + '<div class="sl-top"><div class="sl-ref">' + l.reference + '</div>'
-      +   '<button class="sl-delete" data-ref="' + escAttr(l.reference) + '" title="Supprimer cette ligne" aria-label="Supprimer cette ligne">'
+      +   '<button class="sl-delete" data-ref="' + escAttr(l.reference) + '" data-uid="' + (l.uid || '') + '" title="Supprimer cette ligne" aria-label="Supprimer cette ligne">'
       +     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>'
       +   '</button></div>'
       + '<div class="sl-sync" style="display:none"></div>'
@@ -2242,7 +2254,7 @@ function renderScanLines(flashRef){
 
 function toggleValide(btn){
   const ref=btn.dataset.ref;
-  const line=ligneParRef(ref)||activeLines.find(l=>l.reference===ref);
+  const line=ligneDepuisEl(btn)||activeLines.find(l=>l.reference===ref);
   const row=btn.closest('.scan-line');
   const input=row?.querySelector('.liv-input');
   // Valider une ligne incomplète laissait la quantité à 0 → faux écart à la
@@ -2278,8 +2290,7 @@ function toggleValide(btn){
 }
 
 function onLivreInput(e){
-  const ref = e.target.dataset.ref;
-  const line = ligneParRef(ref);
+  const line = ligneDepuisEl(e.target);
   if (!line) return;
   line.scannee = num(e.target.value);
   line.ecart = line.scannee - line.attendue; // attendue préservée (commande/vendeur), écart réel calculé
@@ -2290,7 +2301,8 @@ function onLivreInput(e){
 function onDeleteLine(e){
   const btn = e.currentTarget;
   const ref = btn.dataset.ref;
-  const idx = activeLines.findIndex(l => l.reference === ref && !l.verrouilleSP);
+  const cible = ligneDepuisEl(btn);
+  const idx = cible && !cible.verrouilleSP ? activeLines.indexOf(cible) : -1;
   if (idx === -1) return;
   const line = activeLines[idx];
   if (line.verrouille) return; // sécurité — ne devrait jamais arriver, le bouton n'est pas rendu pour ces lignes
@@ -2304,6 +2316,7 @@ function enqueueLinePost(action, line){
   const payload = {
     action: action,
     ID_Session: activeSession.id,
+    ID_Ligne: line.id || 0,
     Reference_Article: line.reference,
     Designation: line.designation,
     Quantite_Attendue: line.attendue,
@@ -2353,17 +2366,19 @@ function updateSyncBadge(ref){
 // Envoi séquentiel de toutes les lignes mémoire vers SharePoint avant clôture (mode livraison)
 // Deux lignes non verrouillées de même référence (casse/espace différents)
 // seraient vues comme UNE seule par SharePoint : on les fusionne avant envoi.
+// Les lignes venues de SharePoint (avec ID) restent séparées : chacune est
+// envoyée avec son ID_Ligne. Seule une ligne créée à la volée pendant le scan
+// (sans ID) est fusionnée dans une ligne existante de même référence — sinon
+// le flux, qui cherche par référence, la confondrait avec une autre ligne.
 function fusionnerDoublonsRef(){
-  const vues = {};
   activeLines = activeLines.filter(l => {
-    if (l.verrouilleSP) return true;
+    if (l.verrouilleSP || l.id) return true;
     const k = normRef(l.reference);
-    const prem = vues[k];
-    if (!prem) { vues[k] = l; return true; }
-    prem.scannee += l.scannee;
-    if (l.attendueFixe && !prem.attendueFixe) { prem.attendue = l.attendue; prem.attendueFixe = true; prem.reference = l.reference; if (l.designation) prem.designation = l.designation; }
-    else if (!prem.attendueFixe && !l.attendueFixe) prem.attendue += l.attendue;
-    prem.ecart = prem.scannee - prem.attendue;
+    const cible = activeLines.find(x => x !== l && !x.verrouilleSP && normRef(x.reference) === k && (x.id || activeLines.indexOf(x) < activeLines.indexOf(l)));
+    if (!cible) return true;
+    cible.scannee += l.scannee;
+    if (!cible.attendueFixe) cible.attendue += l.attendue;
+    cible.ecart = cible.scannee - cible.attendue;
     return false;
   });
 }
@@ -2384,6 +2399,7 @@ function clotureEnvoyerLignes(){
       body: JSON.stringify({
         action: 'scan',
         ID_Session: activeSession.id,
+        ID_Ligne: line.id || 0,
         Reference_Article: line.reference,
         Designation: line.designation,
         // On préserve l'attendu réel (commande/vendeur) s'il existe ; on ne retombe
