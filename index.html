@@ -457,6 +457,7 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
   #draftBanner{position:sticky;top:0;z-index:50;padding:6px 8px;background:#fffbeb;border-bottom:1px solid #fcd34d}
   #draftBanner .draft-item{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:13px;color:#92400e;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:7px 10px;margin:3px 0}
   #draftBanner .draft-item button{border:none;border-radius:6px;padding:7px 12px;font-weight:700;font-size:13px;background:#d97706;color:#fff;cursor:pointer;font-family:inherit}
+  .btn-apercu{width:100%;margin-top:10px;margin-bottom:6px;padding:10px;border-radius:10px;border:1.5px solid #cbd5e1;background:#fff;color:#334155;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit}
 </style>
 </head>
 <body>
@@ -1581,6 +1582,7 @@ function renderSessions() {
         ${isLivraison ? `<div class="sc-row"><span>Client</span><span>${s.Client}</span></div>` : ''}
         <div class="sc-row"><span>Vendeur</span><span>${vendeur}</span></div>
         <div class="sc-row"><span>Émis le</span><span>${dateAff}</span></div>
+        <button class="btn-apercu" data-id="${s.ID}" type="button">👁 Voir le contenu</button>
         <button class="btn-prendre" data-id="${s.ID}" ${selectedMagasinier ? '' : 'disabled'}>
           ${selectedMagasinier ? 'Prendre en charge' : 'Sélectionne ton nom ci-dessus'}
         </button>
@@ -1590,6 +1592,52 @@ function renderSessions() {
 
   elSessionsList.querySelectorAll('.btn-prendre').forEach(btn => {
     btn.addEventListener('click', () => prendreEnCharge(btn));
+  });
+  elSessionsList.querySelectorAll('.btn-apercu').forEach(btn => {
+    btn.addEventListener('click', () => apercuBL(btn.dataset.id));
+  });
+}
+
+// ── Aperçu d'un BL sans le prendre en charge ──
+// Retour terrain : prendre en charge « juste pour voir » faisait passer le BL
+// dans « Scanner » alors que rien n'avait été fait. L'aperçu lit les articles
+// sans rien modifier : le BL reste dans « BL en attente ».
+function apercuBL(id){
+  const sess = sessionsCache.find(s => String(s.ID) === String(id));
+  if (!sess) { showToast('BL introuvable — actualise la liste.'); return; }
+  let ov = document.getElementById('apercuOverlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'apercuOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:1000;display:flex;align-items:flex-end;justify-content:center';
+    ov.addEventListener('click', e => { if (e.target === ov) ov.style.display = 'none'; });
+    document.body.appendChild(ov);
+  }
+  const esc = v => String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const entete = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-weight:800;font-size:16px">' + docIcon(sess.Numero_BL) + esc(sess.Numero_BL) + '</div>'
+    + '<button type="button" onclick="document.getElementById(\'apercuOverlay\').style.display=\'none\'" style="border:none;background:#f1f5f9;border-radius:8px;padding:6px 10px;font-weight:700;cursor:pointer">✕</button></div>'
+    + '<div style="font-size:13px;color:#475569;margin-bottom:10px">' + esc(sess.Client || '') + (choiceValue(sess.Vendeur_Emetteur) ? ' · ' + esc(choiceValue(sess.Vendeur_Emetteur)) : '') + '</div>';
+  ov.innerHTML = '<div style="background:#fff;width:100%;max-width:560px;max-height:85vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px">' + entete + '<div style="color:#64748b;font-size:13px;padding:14px 0">Chargement des articles…</div></div>';
+  ov.style.display = 'flex';
+  fetch(CONFIG.FLOWS.LISTE_LIGNES).then(r => r.json()).then(data => {
+    const all = Array.isArray(data) ? data : (data.value || []);
+    const lignes = all.filter(l => String(lineSessionId(l)) === String(id));
+    const corps = lignes.length
+      ? '<table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr style="text-align:left;color:#64748b;font-size:11.5px;text-transform:uppercase"><th style="padding:6px 4px">Réf.</th><th style="padding:6px 4px">Désignation</th><th style="padding:6px 4px;text-align:right">Qté</th></tr></thead><tbody>'
+        + lignes.map(l => '<tr style="border-top:1px solid #e2e8f0"><td style="padding:8px 4px;font-weight:700;font-family:monospace">' + esc(l.Reference_Article) + '</td><td style="padding:8px 4px">' + esc(l.Designation) + '</td><td style="padding:8px 4px;text-align:right;font-weight:800">' + (Number(l.Quantite_Attendue) || 0) + '</td></tr>').join('')
+        + '</tbody></table>'
+      : '<div style="color:#64748b;font-size:13px;padding:14px 0">Aucun article saisi sur ce BL — les articles seront ajoutés au scan.</div>';
+    const pied = '<div style="font-size:12px;color:#64748b;margin:12px 0 10px">Aperçu seulement : le BL reste dans « BL en attente ».</div>'
+      + (selectedMagasinier ? '<button type="button" id="apercuPrendre" class="btn-prendre" style="width:100%">Prendre en charge maintenant</button>' : '');
+    ov.firstChild.innerHTML = entete + corps + pied;
+    const b = document.getElementById('apercuPrendre');
+    if (b) b.addEventListener('click', () => {
+      ov.style.display = 'none';
+      const vrai = elSessionsList.querySelector('.btn-prendre[data-id="' + id + '"]');
+      if (vrai) prendreEnCharge(vrai);
+    });
+  }).catch(() => {
+    ov.firstChild.innerHTML = entete + '<div style="color:#b91c1c;font-size:13px;padding:14px 0">Impossible de charger les articles — vérifie la connexion.</div>';
   });
 }
 
