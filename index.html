@@ -1480,7 +1480,8 @@ function fetchSessions() {
 
 function renderSessions() {
   // ── Bloc "Prêtes à livrer" ──
-  const pretes = sessionsCache.filter(s => choiceValue(s.Statut) === 'Prête à livrer');
+  // Les préparations sans BL (« PREP-BC-… ») ne sont pas livrables : elles attendent le BL du vendeur.
+  const pretes = sessionsCache.filter(s => choiceValue(s.Statut) === 'Prête à livrer' && !String(s.Numero_BL || '').toUpperCase().startsWith('PREP-BC-'));
   const elPretes = document.getElementById('pretes-block');
   if (pretes.length && !elPretes) {
     const block = document.createElement('div');
@@ -1906,6 +1907,23 @@ function startSession(sess){
   // En mode préparation à l'avance (en cours OU déjà prête), "Terminer livraison" se fait depuis un autre endroit
   // donc on libelle le bouton principal selon le contexte
   elBtnCloturer.textContent = (showPrete || dejaPrete) ? '📦 Terminer la livraison' : 'Clôturer la session';
+  // Préparation demandée depuis un BC, BL pas encore émis (réf. « PREP-BC-… ») :
+  // on prépare seulement — aucune clôture (donc aucune sortie de stock) avant le vrai BL.
+  const sansBL = String(sess.numero || '').toUpperCase().startsWith('PREP-BC-');
+  elBtnCloturer.style.display = sansBL ? 'none' : '';
+  elBtnCloturePartielle.style.display = (isLiv && !sansBL) ? 'block' : 'none';
+  if (sansBL) elBtnCommandePrete.style.display = dejaPrete ? 'none' : 'block';
+  let elSansBL = document.getElementById('scanSansBLInfo');
+  if (!elSansBL) {
+    elSansBL = document.createElement('div');
+    elSansBL.id = 'scanSansBLInfo';
+    elSansBL.style.cssText = 'background:#f5f3ff;border:1px solid #c4b5fd;color:#4c1d95;border-radius:8px;padding:9px 12px;font-size:13px;margin:8px 0;line-height:1.45';
+    elBtnCommandePrete.parentNode.insertBefore(elSansBL, elBtnCommandePrete);
+  }
+  elSansBL.style.display = sansBL ? 'block' : 'none';
+  elSansBL.innerHTML = dejaPrete
+    ? '🟣 <strong>Préparation terminée.</strong> Le vendeur doit encore émettre le BL : la livraison se fera sur ce BL quand le client viendra.'
+    : '🟣 <strong>Préparation sans BL</strong> (BC ' + String(sess.numero).replace(/^PREP-BC-/i, '') + ') : prépare les articles et saisis la quantité réellement disponible. Ce qui manque sera signalé au vendeur. Termine par « Commande prête ».';
   afficherBandeauOrigine(sess.blRacine, sess.id);
   showScanState('active');
   renderScanLines();
@@ -2751,6 +2769,7 @@ function verifierLivraisonPrete(id){
 // du clic (pas seulement à l'affichage) avant de clôturer directement,
 // jamais en aveugle sur une préparation incomplète.
 function prendreEnChargeEtLivrer(id, numero){
+  if (String(numero || '').toUpperCase().startsWith('PREP-BC-')) { showToast('BL pas encore émis — impossible de livrer cette préparation.'); return; }
   const sess = sessionsCache.find(s => s.ID === id);
   if (!sess) { showToast('Session introuvable — actualise la liste.'); return; }
   if (Number(sess.Nb_Ecarts || 0) !== 0) {
