@@ -2928,11 +2928,124 @@ function prendreEnChargeEtLivrer(id, numero){
   });
 }
 
+
+// ═══ ALERTES DE CLÔTURE — CODE COULEUR ═══
+// Retour terrain (157013-A) : « Clôturer la session » avec des articles
+// manquants a clôturé définitivement, le reste à livrer a disparu. Le confirm()
+// gris ne se distinguait pas. Chaque situation a désormais sa couleur, la même
+// que sur la fiche imprimée affichée au magasin :
+//   🟢 VERT   tout est conforme
+//   🟠 ORANGE il manque des articles → le client revient ? (reste à livrer)
+//   🔴 ROUGE  plus d'articles que le BL, ou action définitive avec écart
+//   ⚪ GRIS   aucun article scanné
+var ALERTE_COULEURS = {
+  vert:   { fg: '#15803d', bg: '#f0fdf4', bd: '#16a34a', ico: '🟢' },
+  orange: { fg: '#c2410c', bg: '#fff7ed', bd: '#ea580c', ico: '🟠' },
+  rouge:  { fg: '#b91c1c', bg: '#fef2f2', bd: '#dc2626', ico: '🔴' },
+  gris:   { fg: '#334155', bg: '#f1f5f9', bd: '#64748b', ico: '⚪' }
+};
+function fermerAlerteCloture(){ const ov = document.getElementById('alerteCloture'); if (ov) ov.remove(); }
+// boutons : [{ label, couleur: 'orange'|'rouge'|'vert'|'neutre', plein: bool, action: fn }]
+function alerteCloture(niveau, titre, sousTitre, corpsHTML, boutons){
+  fermerAlerteCloture();
+  const c = ALERTE_COULEURS[niveau] || ALERTE_COULEURS.gris;
+  const ov = document.createElement('div');
+  ov.id = 'alerteCloture';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:1100;display:flex;align-items:center;justify-content:center;padding:14px';
+  const btnStyle = b => {
+    const k = b.couleur === 'neutre' ? { fg: '#334155', bd: '#cbd5e1' } : ALERTE_COULEURS[b.couleur];
+    return 'display:block;width:100%;margin-top:10px;padding:14px 12px;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;text-align:center;line-height:1.3;'
+      + (b.plein ? 'background:' + k.bd + ';color:#fff;border:2px solid ' + k.bd : 'background:#fff;color:' + k.fg + ';border:2px solid ' + k.bd);
+  };
+  ov.innerHTML = '<div style="background:#fff;width:100%;max-width:520px;max-height:90vh;overflow:auto;border-radius:16px;border:4px solid ' + c.bd + ';box-shadow:0 20px 50px rgba(0,0,0,.35)">'
+    + '<div style="background:' + c.bd + ';color:#fff;padding:14px 16px;font-size:18px;font-weight:900;line-height:1.25">' + c.ico + ' ' + titre + '</div>'
+    + '<div style="padding:14px 16px;background:' + c.bg + '">'
+    +   (sousTitre ? '<div style="font-size:15px;font-weight:700;color:' + c.fg + ';margin-bottom:10px">' + sousTitre + '</div>' : '')
+    +   corpsHTML
+    +   boutons.map((b, i) => '<button type="button" data-i="' + i + '" style="' + btnStyle(b) + '">' + b.label + '</button>').join('')
+    + '</div></div>';
+  ov.querySelectorAll('button[data-i]').forEach(el => el.addEventListener('click', () => {
+    const b = boutons[Number(el.dataset.i)];
+    fermerAlerteCloture();
+    if (b.action) b.action();
+  }));
+  document.body.appendChild(ov);
+}
+function _tableEcarts(lignes, couleur, sens){
+  const esc = v => String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  return '<table style="width:100%;border-collapse:collapse;font-size:14px;background:#fff;border-radius:10px;overflow:hidden;margin-bottom:6px">'
+    + '<thead><tr style="color:#64748b;font-size:11px;text-transform:uppercase;text-align:left"><th style="padding:7px 8px">Article</th><th style="padding:7px 8px;text-align:right">Livré</th><th style="padding:7px 8px;text-align:right">BL</th><th style="padding:7px 8px;text-align:right">' + (sens === 'manque' ? 'Reste' : 'En trop') + '</th></tr></thead><tbody>'
+    + lignes.map(l => '<tr style="border-top:1px solid #e2e8f0"><td style="padding:8px"><div style="font-weight:800;font-family:monospace">' + esc(l.reference) + '</div><div style="font-size:12px;color:#64748b">' + esc((l.designation || '').slice(0, 40)) + '</div></td>'
+      + '<td style="padding:8px;text-align:right">' + l.scannee + '</td><td style="padding:8px;text-align:right">' + l.attendue + '</td>'
+      + '<td style="padding:8px;text-align:right;font-weight:900;font-size:16px;color:' + couleur + '">' + Math.abs(l.scannee - l.attendue) + '</td></tr>').join('')
+    + '</tbody></table>';
+}
+function surlignerLignes(lignes){
+  const refs = new Set(lignes.map(l => l.reference));
+  let premier = null;
+  document.querySelectorAll('.scan-line[data-ref]').forEach(el => {
+    if (refs.has(el.dataset.ref)){
+      el.style.outline = '3px solid #ea580c'; el.style.outlineOffset = '2px';
+      if (!premier) premier = el;
+      setTimeout(() => { el.style.outline = ''; el.style.outlineOffset = ''; }, 8000);
+    }
+  });
+  if (premier) premier.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+var _clotureValidee = false, _partielleValidee = false;
+function demanderCloture(){
+  const lignes = activeLines.filter(l => !l.verrouilleSP);
+  const manque = lignes.filter(l => l.scannee < l.attendue);
+  const surplus = lignes.filter(l => l.scannee > l.attendue);
+  const totalScan = lignes.reduce((a, l) => a + (Number(l.scannee) || 0), 0);
+  const partielleDispo = elBtnCloturePartielle.style.display !== 'none';
+  const num = escAttr(activeSession.numero);
+  const cloturer = () => { _clotureValidee = true; elBtnCloturer.click(); };
+  const resteALivrer = () => { _partielleValidee = true; elBtnCloturePartielle.click(); };
+  const corriger = l => () => { showToast('Corrige les quantités puis appuie à nouveau sur « Clôturer »'); setTimeout(() => surlignerLignes(l), 150); };
+  const annuler = { label: 'Annuler', couleur: 'neutre', action: null };
+
+  if (totalScan === 0){
+    alerteCloture('gris', 'Aucun article scanné', 'BL ' + num + ' : rien n\'a été scanné.',
+      '<div style="font-size:14px;color:#334155">Si le client n\'a rien emporté, il ne faut pas clôturer : remets le BL en attente ou préviens le vendeur.</div>',
+      [ { label: '↩ Retour au scan', couleur: 'gris', plein: true, action: null },
+        { label: 'Clôturer sans article (définitif)', couleur: 'rouge', action: cloturer } ]);
+    return;
+  }
+  if (!manque.length && !surplus.length){
+    alerteCloture('vert', 'Tout est conforme', 'BL ' + num + ' : ' + lignes.length + ' référence(s), ' + totalScan + ' unité(s), aucun écart.', '',
+      [ { label: '✅ Clôturer la session', couleur: 'vert', plein: true, action: cloturer }, annuler ]);
+    return;
+  }
+  let corps = '';
+  if (manque.length) corps += '<div style="font-weight:800;color:#c2410c;margin:4px 0 6px">🟠 Il manque ' + manque.length + ' article(s)</div>' + _tableEcarts(manque, '#c2410c', 'manque');
+  if (surplus.length) corps += '<div style="font-weight:800;color:#b91c1c;margin:10px 0 6px">🔴 En trop par rapport au BL</div>' + _tableEcarts(surplus, '#b91c1c', 'surplus');
+  if (manque.length && !surplus.length){
+    const btns = [];
+    if (partielleDispo) btns.push({ label: '🟠 OUI, le client revient<br><span style="font-weight:600;font-size:13px">Créer le reste à livrer (nouveau BL)</span>', couleur: 'orange', plein: true, action: resteALivrer });
+    btns.push({ label: '✏️ NON, il a tout pris<br><span style="font-weight:600;font-size:13px">Je corrige les quantités</span>', couleur: 'orange', action: corriger(manque) });
+    btns.push({ label: '🔴 NON, il ne reviendra pas<br><span style="font-weight:600;font-size:13px">Clôturer avec écart (définitif)</span>', couleur: 'rouge', action: cloturer });
+    btns.push(annuler);
+    alerteCloture('orange', 'Tout n\'est pas livré', 'Le client reviendra-t-il chercher le reste ?', corps, btns);
+    return;
+  }
+  const btns = [{ label: '✏️ Je corrige les quantités', couleur: 'rouge', plein: true, action: corriger(surplus.concat(manque)) }];
+  if (manque.length && partielleDispo) btns.push({ label: '🟠 Le client revient pour le manquant<br><span style="font-weight:600;font-size:13px">Créer le reste à livrer</span>', couleur: 'orange', action: resteALivrer });
+  btns.push({ label: '🔴 Clôturer quand même<br><span style="font-weight:600;font-size:13px">Le vendeur régularisera (définitif)</span>', couleur: 'rouge', action: cloturer });
+  btns.push(annuler);
+  alerteCloture('rouge', 'Quantités différentes du BL', 'Vérifie avant de clôturer : le vendeur devra régulariser.', corps, btns);
+}
+
 elBtnCloturer.addEventListener('click', () => {
   if (!activeSession) return;
   fusionnerDoublonsRef();
   const lignesEcart = activeLines.filter(l => !l.verrouilleSP && l.ecart !== 0);
   const ecarts = lignesEcart.length;
+  if (estTypeLivraison(activeSession.type)){
+    // Livraison : alerte en couleur ; l'envoi ne part qu'après un choix explicite
+    if (!_clotureValidee){ demanderCloture(); return; }
+    _clotureValidee = false;
+  } else {
   let msgConfirm = 'Clôturer le BL ' + activeSession.numero + ' ?\n\nCette action est définitive.';
   if (activeLines.length === 0) msgConfirm = 'Aucun article scanné sur le BL ' + activeSession.numero + '. Clôturer quand même ?\n\nCette action est définitive.';
   else if (ecarts > 0) msgConfirm = ecarts + ' référence(s) en écart sur le BL ' + activeSession.numero + ' :\n\n'
@@ -2940,6 +3053,7 @@ elBtnCloturer.addEventListener('click', () => {
     + (ecarts > 8 ? '\n… et ' + (ecarts - 8) + ' autre(s)' : '')
     + '\n\nSi le client a bien tout emporté, Annuler et corriger la quantité.\nClôturer quand même ? (définitif)';
   if (!confirm(msgConfirm)) return;
+  }
 
   elBtnCloturer.disabled = true;
   elBtnCloturer.innerHTML = '<span class="spinner"></span> Envoi des lignes...';
@@ -2992,7 +3106,8 @@ elBtnCloturePartielle.addEventListener('click', () => {
     return;
   }
   const detail = reste.map(l => '• ' + l.reference + ' (' + (l.attendue - l.scannee) + ' restant)').join('\n');
-  if (!confirm(
+  const dejaValide = _partielleValidee; _partielleValidee = false;
+  if (!dejaValide && !confirm(
     "Clôturer en livraison partielle ?\n\n" +
     "Ce qui a été scanné part en stock maintenant. Un nouveau BL sera créé automatiquement pour le reste :\n\n" +
     detail
