@@ -1441,7 +1441,9 @@ function silentRefreshSessions() {
   fetch(CONFIG.FLOWS.LISTE_SESSIONS)
     .then(r => r.json())
     .then(data => {
-      sessionsCache = Array.isArray(data) ? data : (data.value || []);
+      const all0 = Array.isArray(data) ? data : (data.value || []);
+      majEnvois(all0);
+      sessionsCache = sansEnvoisEnCours(all0);
       sessionsLoadedOnce = true;
       renderSessions();
     })
@@ -1466,7 +1468,9 @@ function fetchSessions() {
   return fetch(CONFIG.FLOWS.LISTE_SESSIONS)
     .then(r => r.json())
     .then(data => {
-      sessionsCache = Array.isArray(data) ? data : (data.value || []);
+      const all0 = Array.isArray(data) ? data : (data.value || []);
+      majEnvois(all0);
+      sessionsCache = sansEnvoisEnCours(all0);
       sessionsLoadedOnce = true;
       renderSessions();
     })
@@ -1815,7 +1819,9 @@ function fetchScanSessions(){
   return Promise.all([fetch(CONFIG.FLOWS.LISTE_SESSIONS).then(r => r.json()), lignesP])
     .then(([data, lignes]) => {
       pickerLignesCache = lignes;
-      const all = Array.isArray(data) ? data : (data.value || []);
+      const all0 = Array.isArray(data) ? data : (data.value || []);
+      majEnvois(all0);
+      const all = sansEnvoisEnCours(all0);
       // Toutes les livraisons en cours sont visibles par tous les magasiniers —
       // si celui qui a commencé n'est pas là quand le client revient, n'importe
       // qui doit pouvoir reprendre. Les tiennes d'abord, celles des collègues ensuite.
@@ -2539,6 +2545,8 @@ function draftsTous(){
 }
 function draftSauver(){
   if (_draftSuspendu || !activeSession || !estTypeLivraison(activeSession.type)) return;
+  if (elScanActive.style.display === 'none') return; // écran de succès ou liste : rien en cours
+  if (envoiEnAttente(activeSession.id)) return;
   const d = draftsTous();
   const lignes = activeLines.filter(l => !l.verrouilleSP).map(l => ({
     id: l.id || null, reference: l.reference, designation: l.designation, known: !!l.known,
@@ -2586,8 +2594,16 @@ function majBandeauBrouillon(){
   const d = draftsTous();
   const items = Object.keys(d).map(k => d[k])
     .filter(x => !(activeSession && String(activeSession.id) === String(x.sess.id) && elScanActive.style.display !== 'none'))
-    .filter(x => !(clot && String(clot.sid) === String(x.sess.id)));
+    .filter(x => !(clot && String(clot.sid) === String(x.sess.id)))
+    .filter(x => !envoisTous()[String(x.sess.id)]);
   let html = '';
+  const env = envoisTous();
+  Object.keys(env).filter(k => env[k].echec).forEach(k => {
+    html += '<div class="draft-item" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b">'
+      + '<span>⚠️ <strong>BL ' + escAttr(env[k].numero || k) + '</strong> : clôture envoyée mais pas enregistrée par le serveur</span>'
+      + '<button type="button" onclick="renvoyerCloture(\'' + escAttr(String(k)) + '\')" style="background:#b91c1c">Renvoyer</button>'
+      + '</div>';
+  });
   if (clot && !(activeSession && String(activeSession.id) === String(clot.sid) && elScanActive.style.display !== 'none')){
     const recente = clot.etape === 'cloture' && Date.now() - (clot.tc || 0) < 120000;
     html += '<div class="draft-item" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b">'
@@ -2653,6 +2669,70 @@ function clotureFin(sid){
   if (c && String(c.sid) === String(sid)) _lsSet(CLOT_KEY, null);
   draftSupprimer(sid);
 }
+// ── Clôtures envoyées, en attente de confirmation par SharePoint ──
+// Retour terrain : après le message « Session clôturée », le BL réapparaissait
+// dans l'onglet Scanner (le flux met quelques secondes à passer le statut) ou
+// dans le bandeau. Les envois partent en no-cors : le téléphone ne voit pas la
+// réponse du flux. On garde donc chaque clôture envoyée, on masque le BL tant
+// que SharePoint n'a pas confirmé, et on ne l'affiche en rouge que si le
+// statut n'a toujours pas changé après ENVOI_DELAI.
+var ENVOI_KEY = 'rp_scan_envois', ENVOI_DELAI = 5 * 60 * 1000;
+var _verifEnvoiTimer = null;
+function envoisTous(){
+  const e = _lsGet(ENVOI_KEY) || {};
+  const now = Date.now();
+  Object.keys(e).forEach(k => { if (!e[k] || now - e[k].tEnv > DRAFT_TTL) delete e[k]; });
+  return e;
+}
+function envoiEnAttente(sid){ const e = envoisTous()[String(sid)]; return !!(e && !e.echec); }
+function clotureEnvoyee(sid){
+  const c = _lsGet(CLOT_KEY);
+  const e = envoisTous();
+  const rec = (c && String(c.sid) === String(sid)) ? c : { sid, numero: '', kind: 'normale', extra: {}, lignes: [] };
+  rec.tEnv = Date.now(); rec.echec = false;
+  e[String(sid)] = rec;
+  _lsSet(ENVOI_KEY, e);
+  clotureFin(sid);
+  planifierVerifEnvois(20000);
+}
+function planifierVerifEnvois(ms){
+  if (_verifEnvoiTimer) clearTimeout(_verifEnvoiTimer);
+  _verifEnvoiTimer = setTimeout(() => { _verifEnvoiTimer = null; verifierEnvois(); }, ms);
+}
+// Met à jour les envois à partir d'une liste de sessions déjà chargée.
+function majEnvois(all){
+  const e = envoisTous();
+  let change = false, restants = 0;
+  Object.keys(e).forEach(k => {
+    const x = e[k];
+    const s = all.find(z => String(z.ID) === String(k));
+    if (!s || _statutCloture(x.kind, choiceValue(s.Statut))){ delete e[k]; change = true; return; }
+    if (!x.echec && Date.now() - x.tEnv > ENVOI_DELAI){ x.echec = true; change = true; }
+    if (!x.echec) restants++;
+  });
+  if (change) _lsSet(ENVOI_KEY, e);
+  if (restants) planifierVerifEnvois(45000);
+  majBandeauBrouillon();
+}
+function verifierEnvois(){
+  if (!Object.keys(envoisTous()).length){ majBandeauBrouillon(); return Promise.resolve(); }
+  return fetch(CONFIG.FLOWS.LISTE_SESSIONS).then(r => r.json())
+    .then(data => majEnvois(Array.isArray(data) ? data : (data.value || [])))
+    .catch(() => planifierVerifEnvois(60000));
+}
+// Retire des listes les BL dont la clôture est partie mais pas encore confirmée
+function sansEnvoisEnCours(list){ return list.filter(s => !envoiEnAttente(s.ID)); }
+function renvoyerCloture(sid){
+  const e = envoisTous(); const x = e[String(sid)];
+  if (!x) { majBandeauBrouillon(); return; }
+  delete e[String(sid)]; _lsSet(ENVOI_KEY, e);
+  if (!x.lignes || !x.lignes.length){
+    alert('La clôture du BL ' + (x.numero || sid) + " n'a pas été confirmée.\nOuvre ce BL dans l'onglet Scanner et clôture-le à nouveau.");
+    majBandeauBrouillon(); fetchScanSessions(); return;
+  }
+  _lsSet(CLOT_KEY, Object.assign({}, x, { etape: 'lignes', t: Date.now() }));
+  reprendreCloture();
+}
 const _statutCloture = (kind, st) => {
   st = String(st || '').toLowerCase();
   if (/termin|écart|ecart|partiel/.test(st)) return true;
@@ -2713,7 +2793,7 @@ function reprendreCloture(){
         body: JSON.stringify(Object.assign({ ID_Session: c.sid, _token: CONFIG.TOKEN }, action, c.extra || {}))
       });
     }).then(() => {
-      clotureFin(c.sid);
+      clotureEnvoyee(c.sid);
       showToast('✅ Clôture du BL ' + c.numero + ' envoyée');
       if (activeSession && String(activeSession.id) === String(c.sid)){ stopScanner(); activeSession = null; activeLines = []; showScanState('picker'); }
       fetchScanSessions(); if (sessionsLoadedOnce) fetchSessions();
@@ -2752,12 +2832,13 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible'){
     if (activeSession && elScanActive.style.display !== 'none') wakeOn();
     verifierClotureEnAttente();
+    verifierEnvois();
   } else {
     draftSauver();
   }
 });
 window.addEventListener('pagehide', () => draftSauver());
-setTimeout(() => { verifierClotureEnAttente(); majBandeauBrouillon(); }, 800);
+setTimeout(() => { verifierClotureEnAttente(); verifierEnvois(); majBandeauBrouillon(); }, 800);
 
 // ── Commande prête (préparation à l'avance) ──
 elBtnCommandePrete.addEventListener('click', () => {
@@ -2777,7 +2858,7 @@ elBtnCommandePrete.addEventListener('click', () => {
       body: JSON.stringify({ ID_Session: activeSession.id, action: 'prete', _token: CONFIG.TOKEN })
     }); })
     .then(() => {
-      clotureFin(activeSession.id);
+      clotureEnvoyee(activeSession.id);
       stopScanner();
       document.getElementById('scanSuccessText').textContent = 'Commande prête — le vendeur peut valider la livraison quand le client arrive.';
       document.getElementById('scanSuccessRecap').innerHTML =
@@ -2785,6 +2866,7 @@ elBtnCommandePrete.addEventListener('click', () => {
         + '<div><span>Client</span><span>' + (activeSession.client || '—') + '</span></div>'
         + '<div><span>Statut</span><span>Prête à livrer</span></div>';
       showScanState('success');
+      activeSession = null; activeLines = [];
     })
     .catch(() => {
       elScanReaderMsg.classList.remove('hidden');
@@ -2836,6 +2918,9 @@ function prendreEnChargeEtLivrer(id, numero){
     headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify(Object.assign({ ID_Session: id, _token: CONFIG.TOKEN }, extra))
   }).then(() => {
+    const e = envoisTous();
+    e[String(id)] = { sid: id, numero, kind: 'normale', extra, lignes: [], tEnv: Date.now(), echec: false };
+    _lsSet(ENVOI_KEY, e); planifierVerifEnvois(20000);
     showToast('✅ BL ' + numero + ' — livraison confirmée');
     fetchSessions();
   }).catch(() => {
@@ -2873,7 +2958,7 @@ elBtnCloturer.addEventListener('click', () => {
       });
     })
     .then(() => {
-      clotureFin(activeSession.id);
+      clotureEnvoyee(activeSession.id);
       stopScanner();
       const units = activeLines.reduce((a, l) => a + l.scannee, 0);
       document.getElementById('scanSuccessText').textContent =
@@ -2884,6 +2969,7 @@ elBtnCloturer.addEventListener('click', () => {
         + '<div><span>Unités scannées</span><span>' + units + '</span></div>'
         + '<div><span>Écarts</span><span>' + ecarts + '</span></div>';
       showScanState('success');
+      activeSession = null; activeLines = [];
     })
     .catch(() => {
       elScanReaderMsg.classList.remove('hidden');
@@ -2929,7 +3015,7 @@ elBtnCloturePartielle.addEventListener('click', () => {
       });
     })
     .then(() => {
-      clotureFin(activeSession.id);
+      clotureEnvoyee(activeSession.id);
       stopScanner();
       const units = activeLines.reduce((a, l) => a + l.scannee, 0);
       document.getElementById('scanSuccessText').textContent =
@@ -2939,6 +3025,7 @@ elBtnCloturePartielle.addEventListener('click', () => {
         + '<div><span>Unités parties aujourd\'hui</span><span>' + units + '</span></div>'
         + '<div><span>Références reportées</span><span>' + reste.length + '</span></div>';
       showScanState('success');
+      activeSession = null; activeLines = [];
     })
     .catch(() => {
       elScanReaderMsg.classList.remove('hidden');
