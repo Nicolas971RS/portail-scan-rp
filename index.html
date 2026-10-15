@@ -1627,11 +1627,11 @@ function apercuBL(id){
     const all = Array.isArray(data) ? data : (data.value || []);
     const lignes = all.filter(l => String(lineSessionId(l)) === String(id));
     const corps = lignes.length
-      ? '<table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr style="text-align:left;color:#64748b;font-size:11.5px;text-transform:uppercase"><th style="padding:6px 4px">Réf.</th><th style="padding:6px 4px">Désignation</th><th style="padding:6px 4px;text-align:right">Qté</th></tr></thead><tbody>'
-        + lignes.map(l => '<tr style="border-top:1px solid #e2e8f0"><td style="padding:8px 4px;font-weight:700;font-family:monospace">' + esc(l.Reference_Article) + '</td><td style="padding:8px 4px">' + esc(l.Designation) + '</td><td style="padding:8px 4px;text-align:right;font-weight:800">' + (Number(l.Quantite_Attendue) || 0) + '</td></tr>').join('')
+      ? '<table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr style="text-align:left;color:#64748b;font-size:11.5px;text-transform:uppercase"><th style="padding:6px 4px">Réf.</th><th style="padding:6px 4px">Désignation</th><th style="padding:6px 4px;text-align:right">Qté</th><th style="padding:6px 4px;text-align:right" title="Stock Image (catalogue)">Stock</th></tr></thead><tbody>'
+        + lignes.map(l => '<tr style="border-top:1px solid #e2e8f0"><td style="padding:8px 4px;font-weight:700;font-family:monospace">' + esc(l.Reference_Article) + '</td><td style="padding:8px 4px">' + esc(l.Designation) + '</td><td style="padding:8px 4px;text-align:right;font-weight:800">' + (Number(l.Quantite_Attendue) || 0) + '</td>' + (() => { const st = stockImage(l.Reference_Article); return '<td style="padding:8px 4px;text-align:right;font-weight:700;color:' + (st == null ? '#94a3b8' : '#475569') + '">' + (st == null ? '—' : fmtQ(st)) + '</td>'; })() + '</tr>').join('')
         + '</tbody></table>'
       : '<div style="color:#64748b;font-size:13px;padding:14px 0">Aucun article saisi sur ce BL — les articles seront ajoutés au scan.</div>';
-    const pied = '<div style="font-size:12px;color:#64748b;margin:12px 0 10px">Aperçu seulement : le BL reste dans « BL en attente ».</div>'
+    const pied = '<div style="font-size:11.5px;color:#64748b;margin-top:8px">📦 Stock = stock Image restant <strong>après</strong> émission du BL (les quantités du BL sont déjà déduites).</div>' + '<div style="font-size:12px;color:#64748b;margin:12px 0 10px">Aperçu seulement : le BL reste dans « BL en attente ».</div>'
       + (selectedMagasinier ? '<button type="button" id="apercuPrendre" class="btn-prendre" style="width:100%">Prendre en charge maintenant</button>' : '');
     ov.firstChild.innerHTML = entete + corps + pied;
     const b = document.getElementById('apercuPrendre');
@@ -1782,8 +1782,21 @@ function enterScanTab(){
 }
 
 function getStock(c){
-  for (const k in c){ if (/stock.?image/i.test(k)) return num(c[k]); }
-  return 0;
+  for (const k in c){ if (/stock.?image/i.test(k) && !/prec/i.test(k)) return (c[k] === null || c[k] === '' ? null : num(c[k])); }
+  return null; // colonne absente : on n'affiche rien plutôt qu'un faux 0
+}
+// Stock Image d'une référence (null si inconnu)
+function stockImage(ref){ const c = lookupCatalogue(ref); return c && c.stock != null && !isNaN(c.stock) ? c.stock : null; }
+const fmtQ = n => String(+Number(n).toFixed(2)).replace('.', ',');
+// Pastille stock sous l'article. Retour terrain : un article noté « manquant »
+// alors qu'Image en a encore en stock → le magasinier doit chercher avant.
+function stockChip(l){
+  const st = stockImage(l.reference);
+  if (st == null) return '';
+  const manque = l.scannee < l.attendue;
+  if (manque && st > 0)
+    return '<div style="font-size:12px;font-weight:700;color:#9a3412;background:#fff7ed;border:1px solid #fdba74;border-radius:6px;padding:3px 8px;margin-top:3px;display:inline-block">📦 Image indique ' + fmtQ(st) + ' en stock — cherche bien avant de déclarer manquant</div>';
+  return '<div style="font-size:11.5px;color:#64748b;margin-top:2px">📦 Stock Image : <strong>' + fmtQ(st) + '</strong></div>';
 }
 
 function loadCatalogue(){
@@ -2236,7 +2249,7 @@ function registerScan(rawCode){
   } else {
     const cat = lookupCatalogue(code);
     const isInv = (activeSession.type || '').toLowerCase() === 'inventaire physique';
-    const initAtt = isInv ? (cat ? cat.stock : 0) : 1;
+    const initAtt = isInv ? (cat && cat.stock != null ? cat.stock : 0) : 1;
     line = {
       uid: ++_lineUid,
       reference: cat ? cat.ref : code,
@@ -2318,6 +2331,7 @@ function renderScanLines(flashRef){
         + '<div class="sl-sync" style="display:none"></div>'
         + '<div class="' + desCls + '">' + desTxt + '</div>'
         + histoHtml
+        + stockChip(l)
         + '<div class="sl-metrics" style="justify-content:center;gap:24px;">'
         +   '<div class="m" style="flex:0 0 auto;">'
         +     '<input class="liv-input" type="number" min="0" inputmode="numeric" data-ref="' + escAttr(l.reference) + '" data-uid="' + (l.uid || '') + '" value="' + (l.scannee || '') + '" placeholder="0" style="width:72px;font-size:22px;opacity:' + (l.valide ? '.55' : '1') + '"' + (l.valide ? ' disabled' : '') + '>'
@@ -2974,10 +2988,11 @@ function alerteCloture(niveau, titre, sousTitre, corpsHTML, boutons){
 function _tableEcarts(lignes, couleur, sens){
   const esc = v => String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;');
   return '<table style="width:100%;border-collapse:collapse;font-size:14px;background:#fff;border-radius:10px;overflow:hidden;margin-bottom:6px">'
-    + '<thead><tr style="color:#64748b;font-size:11px;text-transform:uppercase;text-align:left"><th style="padding:7px 8px">Article</th><th style="padding:7px 8px;text-align:right">Livré</th><th style="padding:7px 8px;text-align:right">BL</th><th style="padding:7px 8px;text-align:right">' + (sens === 'manque' ? 'Reste' : 'En trop') + '</th></tr></thead><tbody>'
+    + '<thead><tr style="color:#64748b;font-size:11px;text-transform:uppercase;text-align:left"><th style="padding:7px 8px">Article</th><th style="padding:7px 8px;text-align:right">Livré</th><th style="padding:7px 8px;text-align:right">BL</th><th style="padding:7px 8px;text-align:right">' + (sens === 'manque' ? 'Reste' : 'En trop') + '</th><th style="padding:7px 8px;text-align:right" title="Stock Image (catalogue)">Stock</th></tr></thead><tbody>'
     + lignes.map(l => '<tr style="border-top:1px solid #e2e8f0"><td style="padding:8px"><div style="font-weight:800;font-family:monospace">' + esc(l.reference) + '</div><div style="font-size:12px;color:#64748b">' + esc((l.designation || '').slice(0, 40)) + '</div></td>'
       + '<td style="padding:8px;text-align:right">' + l.scannee + '</td><td style="padding:8px;text-align:right">' + l.attendue + '</td>'
-      + '<td style="padding:8px;text-align:right;font-weight:900;font-size:16px;color:' + couleur + '">' + Math.abs(l.scannee - l.attendue) + '</td></tr>').join('')
+      + '<td style="padding:8px;text-align:right;font-weight:900;font-size:16px;color:' + couleur + '">' + Math.abs(l.scannee - l.attendue) + '</td>'
+      + '<td style="padding:8px;text-align:right;font-weight:700;color:' + ((stockImage(l.reference) || 0) > 0 && sens === 'manque' ? '#c2410c' : '#64748b') + '">' + (stockImage(l.reference) == null ? '—' : fmtQ(stockImage(l.reference))) + '</td></tr>').join('')
     + '</tbody></table>';
 }
 function surlignerLignes(lignes){
@@ -3019,6 +3034,8 @@ function demanderCloture(){
   }
   let corps = '';
   if (manque.length) corps += '<div style="font-weight:800;color:#c2410c;margin:4px 0 6px">🟠 Il manque ' + manque.length + ' article(s)</div>' + _tableEcarts(manque, '#c2410c', 'manque');
+  const manqueEnStock = manque.filter(l => (stockImage(l.reference) || 0) > 0);
+  if (manqueEnStock.length) corps += '<div style="font-size:13.5px;font-weight:800;color:#9a3412;background:#ffedd5;border:2px solid #fb923c;border-radius:10px;padding:8px 10px;margin:6px 0">📦 Image indique encore du stock pour ' + manqueEnStock.length + ' article(s) manquant(s) : ' + manqueEnStock.map(l => escAttr(l.reference)).join(', ') + '.<br>Vérifie en rayon avant de créer un reste à livrer.</div>';
   if (surplus.length) corps += '<div style="font-weight:800;color:#b91c1c;margin:10px 0 6px">🔴 En trop par rapport au BL</div>' + _tableEcarts(surplus, '#b91c1c', 'surplus');
   if (manque.length && !surplus.length){
     const btns = [];
