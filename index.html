@@ -458,6 +458,61 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
   #draftBanner .draft-item{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:13px;color:#92400e;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:7px 10px;margin:3px 0}
   #draftBanner .draft-item button{border:none;border-radius:6px;padding:7px 12px;font-weight:700;font-size:13px;background:#d97706;color:#fff;cursor:pointer;font-family:inherit}
   .btn-apercu{width:100%;margin-top:10px;margin-bottom:6px;padding:10px;border-radius:10px;border:1.5px solid #cbd5e1;background:#fff;color:#334155;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit}
+/* ═══ RÉCEPTION CONTENEUR ═══ */
+#rx-block{margin-bottom:18px}
+.rx-cont{background:#fff;border:2px solid #0e7490;border-radius:14px;padding:12px 14px;margin-bottom:12px}
+.rx-cont-h{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.rx-cont-t{font-weight:800;font-size:16px;color:#0f172a}.rx-cont-s{font-size:12px;color:#64748b}
+.rx-cont-n{text-align:right;font-size:13px;color:#475569}.rx-cont-n b{font-size:22px;color:#0e7490}.rx-cont-n small{display:block;font-size:11px}
+.rx-prog{height:6px;background:#e2e8f0;border-radius:6px;overflow:hidden;margin:8px 0 6px}.rx-prog span{display:block;height:100%;background:#14b8a6;transition:width .3s}
+.rx-prog.big{height:9px;margin:8px 0}
+.rx-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #e2e8f0}
+.rx-row-l{display:flex;flex-direction:column;gap:3px;min-width:0}.rx-row-t{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rx-chip{display:inline-block;font-size:11.5px;font-weight:700;border-radius:20px;padding:2px 9px;width:max-content}
+.rx-chip.ok{background:#dcfce7;color:#166534}.rx-chip.cours{background:#fef3c7;color:#92400e}.rx-chip.att{background:#e0f2fe;color:#075985}
+.rx-btn{border:0;background:#0e7490;color:#fff;font-weight:800;font-size:14px;border-radius:10px;padding:10px 16px;min-width:110px;cursor:pointer}
+.rx-btn.alt{background:#fff;color:#0e7490;border:2px solid #0e7490}.rx-btn:disabled{opacity:.5}
+#rxScreen{position:fixed;inset:0;z-index:900;background:#f1f5f9;display:none;flex-direction:column}
+.rx-top{display:flex;align-items:center;gap:10px;background:#1a2744;color:#fff;padding:10px 12px}
+.rx-back{border:0;background:rgba(255,255,255,.14);color:#fff;font-size:26px;line-height:1;width:44px;height:44px;border-radius:10px;cursor:pointer}
+.rx-tt{flex:1;min-width:0}.rx-t1{font-weight:800;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rx-t2{font-size:12px;opacity:.75}
+.rx-sync{font-size:12px;font-weight:700;border-radius:20px;padding:4px 10px;white-space:nowrap}.rx-sync.ok{background:#14532d;color:#bbf7d0}.rx-sync.att{background:#78350f;color:#fde68a}.rx-sync.err{background:#7f1d1d;color:#fecaca}
+.rx-off{background:#fef2f2;color:#991b1b;font-size:13px;font-weight:600;padding:8px 12px;border-bottom:1px solid #fca5a5}
+.rx-head{background:#fff;padding:10px 12px 8px;border-bottom:1px solid #cbd5e1}
+.rx-kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}.rx-kpi>div{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:6px}
+.rx-kpi b{font-size:20px;color:#0f172a}.rx-kpi small{display:block;font-size:11px;color:#64748b}.rx-kpi .ko b{color:#dc2626}
+.rx-fs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.rx-f{border:1.5px solid #cbd5e1;background:#fff;border-radius:20px;padding:7px 12px;font-size:13px;font-weight:600;white-space:nowrap;cursor:pointer}.rx-f.on{background:#1a2744;border-color:#1a2744;color:#fff}
+.rx-q{width:100%;margin-top:8px;border:1.5px solid #94a3b8;border-radius:10px;padding:10px 12px;font-size:15px}
+.rx-list{flex:1;overflow-y:auto;padding:10px 10px 90px;-webkit-overflow-scrolling:touch}
+.rx-vide{text-align:center;color:#64748b;padding:40px 16px;font-size:15px;line-height:1.5}
+.rx-card{background:#fff;border:1.5px solid #cbd5e1;border-left:6px solid #94a3b8;border-radius:12px;padding:10px 12px;margin-bottom:10px}
+.rx-card.e-ok{border-left-color:#16a34a;background:#f0fdf4}.rx-card.e-part{border-left-color:#f59e0b}.rx-card.e-exc,.rx-card.e-nouv{border-left-color:#ea580c;background:#fff7ed}.rx-card.e-ab{border-left-color:#dc2626;background:#fef2f2}
+.rx-c-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.rx-c-des{font-weight:700;font-size:15px;line-height:1.3}
+.rx-tag{font-size:11.5px;font-weight:800;border-radius:20px;padding:2px 8px;white-space:nowrap}.rx-tag.e-ok,.rx-tag.e-ab{background:#dcfce7;color:#166534}.rx-tag.e-part{background:#fef3c7;color:#92400e}.rx-tag.e-exc,.rx-tag.e-nouv{background:#ffedd5;color:#9a3412}
+.rx-c-ref{font-size:12px;color:#64748b;font-family:ui-monospace,Consolas,monospace;margin:2px 0 8px}.rx-pend{color:#b45309}
+.rx-c-cpt{display:flex;align-items:center;gap:8px}
+.rx-att{font-size:11px;color:#64748b;text-align:center;min-width:58px;line-height:1.1}.rx-att b{display:block;font-size:20px;color:#0f172a}
+.rx-m,.rx-p,.rx-val{height:56px;border-radius:12px;font-weight:800;cursor:pointer;touch-action:manipulation}
+.rx-m{width:56px;border:2px solid #94a3b8;background:#fff;font-size:26px;color:#334155}.rx-m:disabled{opacity:.35}
+.rx-val{flex:1;min-width:64px;border:2px solid #1a2744;background:#fff;font-size:24px;color:#0f172a}
+.rx-p{flex:1.4;border:0;background:#0e7490;color:#fff;font-size:22px}.rx-p:active{background:#155e75}
+.rx-c-ab{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;color:#475569}
+.rx-c-ab>b{min-width:24px;text-align:center;font-size:16px}.rx-c-ab>b.ko{color:#dc2626}
+.rx-sm{height:38px;min-width:38px;border:1.5px solid #cbd5e1;background:#fff;border-radius:9px;font-size:16px;font-weight:700;cursor:pointer;padding:0 10px}.rx-sm:disabled{opacity:.35}
+.rx-sm.ko{border-color:#fca5a5;color:#dc2626}.rx-sm.ph{margin-left:auto}.rx-sm.on{background:#e0f2fe;border-color:#7dd3fc}
+.rx-c-obs{font-size:12.5px;color:#92400e;margin-top:6px}
+.rx-bot{position:fixed;left:0;right:0;bottom:0;display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid #cbd5e1;z-index:901}
+.rx-b1,.rx-b2{flex:1;height:52px;border-radius:12px;font-weight:800;font-size:15px;cursor:pointer}
+.rx-b1{border:0;background:#16a34a;color:#fff}.rx-b2{border:2px solid #1a2744;background:#fff;color:#1a2744}.rx-b1:disabled{opacity:.6}
+.rx-valov{position:fixed;inset:0;z-index:950;background:rgba(15,23,42,.6);display:none;align-items:flex-end;justify-content:center}
+.rx-valb{background:#fff;width:100%;max-width:600px;max-height:88vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px;border-top:8px solid #16a34a}
+.rx-valov.rouge .rx-valb{border-top-color:#dc2626}
+.rx-valh{font-size:19px;font-weight:800}.rx-vals{color:#475569;font-size:13.5px;margin:4px 0 10px}
+.rx-valg{border-radius:10px;padding:8px 12px;margin-bottom:8px}.rx-valg h4{margin:0 0 4px;font-size:14px}.rx-valg ul{margin:0;padding-left:18px;font-size:13.5px;line-height:1.5}.rx-valg li span{color:#64748b;font-family:ui-monospace,monospace;font-size:12px}
+.rx-valg.man{background:#fef3c7}.rx-valg.exc{background:#ffedd5}.rx-valg.ab{background:#fee2e2}
+.rx-chk{display:flex;gap:8px;align-items:flex-start;font-size:14px;font-weight:600;margin:10px 0;padding:10px;border:2px solid #f59e0b;border-radius:10px}.rx-chk input{width:22px;height:22px;flex:none}
+.rx-valbtn{display:flex;gap:8px;margin-top:12px}
 </style>
 </head>
 <body>
@@ -716,7 +771,10 @@ const CONFIG = {
     LISTE_CATALOGUE: "https://defaultd441528bbc7746368d248ac9d38aed.63.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/eceefb242fb14c2ab4ae8e527549b577/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=bZs4nCj1k-cgflqU5LtZUy9SCW2aPSymDxuwbHQGpl4",
     LISTE_LIGNES: "https://defaultd441528bbc7746368d248ac9d38aed.63.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ca9a3e3218d3490aabe9762f2dc8fe32/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=OpcbR08ItbQg0EiAredz3zq7PriscGSn9mwvLgdk29E",
     ENREGISTRER_LIGNE: "https://defaultd441528bbc7746368d248ac9d38aed.63.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/b42aab22296d48c4935da318c9fabaf4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=erzBNaG9CnZYreqHeVgAQr0wKL5ym40D0zL1bCzk92w",
-    CLOTURE_SESSION: "https://defaultd441528bbc7746368d248ac9d38aed.63.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/d892ff1c300144ef8be13c94812ead45/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=pgS0iG0CU7bcYK0B0hSrAHqKIlWN3Iq5PxzsdrFIq90"
+    CLOTURE_SESSION: "https://defaultd441528bbc7746368d248ac9d38aed.63.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/d892ff1c300144ef8be13c94812ead45/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=pgS0iG0CU7bcYK0B0hSrAHqKIlWN3Iq5PxzsdrFIq90",
+    // Réception conteneur (contrôle des arrivages) — flux dédiés, aucun lien avec les BL ni le stock
+    RECEPTION_LIGNE: "https://defaultd441528bbc7746368d248ac9d38aed.63.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/05/workflows/6ce1524a6d28458183e90da5e0c123ac/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=QajT5OFQz-BuHkSNwOPGxSHKVvVF9Z6dLKoObf_hDCo",
+    RECEPTION_SESSION: "https://defaultd441528bbc7746368d248ac9d38aed.63.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/15/workflows/ec66f25c14c94e53973ce0b20aae9156/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=7oeE59Ct_VUSrvr3UruUMSHV2bX35iQbXRSCdeE6kwM"
   },
   TOKEN: "rp2026scan"
 };
@@ -1483,7 +1541,8 @@ function fetchSessions() {
     });
 }
 
-function renderSessions() {
+function renderSessions() { _renderSessionsBase(); try { rxRenderBloc(); } catch (e) { console.warn('[Réception]', e); } }
+function _renderSessionsBase() {
   // ── Bloc "Prêtes à livrer" ──
   // Les préparations sans BL (« PREP-BC-… ») ne sont pas livrables : elles attendent le BL du vendeur.
   const pretes = sessionsCache.filter(s => choiceValue(s.Statut) === 'Prête à livrer' && !String(s.Numero_BL || '').toUpperCase().startsWith('PREP-BC-'));
@@ -1527,7 +1586,7 @@ function renderSessions() {
   }
 
   let waiting = sessionsCache
-    .filter(s => choiceValue(s.Statut) === 'BL Émis')
+    .filter(s => choiceValue(s.Statut) === 'BL Émis' && !estReception(s))
     .sort((a, b) => new Date(a.Date_Emission) - new Date(b.Date_Emission));
 
   const totalAttente = waiting.length;
@@ -1838,7 +1897,7 @@ function fetchScanSessions(){
       // Toutes les livraisons en cours sont visibles par tous les magasiniers —
       // si celui qui a commencé n'est pas là quand le client revient, n'importe
       // qui doit pouvoir reprendre. Les tiennes d'abord, celles des collègues ensuite.
-      const enCours = all.filter(s => choiceValue(s.Statut) === 'En cours de scan');
+      const enCours = all.filter(s => choiceValue(s.Statut) === 'En cours de scan' && !estReception(s));
       const mine = enCours.filter(s => choiceValue(s.Magasinier) === selectedMagasinier);
       const autres = enCours.filter(s => choiceValue(s.Magasinier) !== selectedMagasinier);
       renderScanPicker(mine.concat(autres));
@@ -3328,6 +3387,361 @@ function demanderSignature(numeroBL, nomParDefaut, callback){
     sigHasStroke = false;
   });
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// RÉCEPTION CONTENEUR — contrôle des arrivages au doigt (sans caméra)
+// Fiches créées par le Portail Achats (Sessions_Scan, Type_Operation « Réception conteneur »,
+// une par fournisseur). Lignes : Title = clé RX-…, Quantite_Attendue = qté des BC.
+// Enregistrement : flux dédiés RECEPTION_LIGNE / RECEPTION_SESSION (aucun flux BL/stock n'est appelé).
+// ═══════════════════════════════════════════════════════════════════
+const RX_TYPE = 'Réception conteneur';
+const estReception = s => choiceValue(s && s.Type_Operation) === RX_TYPE;
+const rxNum = v => { const n = parseFloat(String(v == null ? '' : v).replace(',', '.')); return isNaN(n) ? 0 : n; };
+const rxFmt = n => String(Math.round(n * 100) / 100).replace('.', ',');
+const rxEsc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const RX_ACHATS = 'https://nicolas971rs.github.io/dashboard-interne-rp/achats.html';
+let RXS = null;            // fiche ouverte : { sess, lines, filtre, q }
+let rxQueue = Promise.resolve();
+let rxRetryTimer = null;
+
+// ── Bloc « Réceptions conteneur » dans l'onglet BL en attente ──
+function rxRenderBloc(){
+  const all = (sessionsCache || []).filter(estReception);
+  const actives = all.filter(s => ['BL Émis', 'En cours de scan'].includes(choiceValue(s.Statut)));
+  let el = document.getElementById('rx-block');
+  const badge = document.getElementById('tabBadgeAttente');
+  const nPrendre = actives.filter(s => choiceValue(s.Statut) === 'BL Émis').length;
+  if (badge && nPrendre) {
+    const base = parseInt(badge.style.display === 'none' ? 0 : badge.textContent, 10) || 0;
+    badge.textContent = base + nPrendre; badge.style.display = 'inline-flex';
+  }
+  if (!actives.length) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div'); el.id = 'rx-block';
+    const ref = document.getElementById('pretes-block') || elSessionsList;
+    ref.parentNode.insertBefore(el, ref);
+    el.addEventListener('click', rxBlocClick);
+  }
+  const parCont = {};
+  all.forEach(s => { const k = s.Conteneur || s.ID_Arrivage || '?'; (parCont[k] = parCont[k] || []).push(s); });
+  const conts = Object.keys(parCont).filter(k => parCont[k].some(s => actives.includes(s)));
+  el.innerHTML = conts.map(k => {
+    const L = parCont[k].sort((a, b) => String(a.Fournisseur || a.Numero_BL).localeCompare(String(b.Fournisseur || b.Numero_BL)));
+    const ok = L.filter(s => choiceValue(s.Statut) === 'Contrôlée').length;
+    return '<div class="rx-cont"><div class="rx-cont-h"><div><div class="rx-cont-t">🚢 ' + rxEsc(k) + '</div><div class="rx-cont-s">Réception conteneur · ' + L.length + ' fiche' + (L.length > 1 ? 's' : '') + ' fournisseur</div></div>'
+      + '<div class="rx-cont-n"><b>' + ok + '</b>/' + L.length + '<small>contrôlées</small></div></div>'
+      + '<div class="rx-prog"><span style="width:' + Math.round(ok / L.length * 100) + '%"></span></div>'
+      + L.map(s => {
+        const st = choiceValue(s.Statut), mag = choiceValue(s.Magasinier);
+        const moi = mag && mag === selectedMagasinier;
+        let etat, btn = '';
+        if (st === 'Contrôlée') etat = '<span class="rx-chip ok">✓ ' + rxEsc(choiceValue(s.Repris_Par) || mag || 'contrôlée') + '</span>';
+        else if (st === 'En cours de scan') { etat = '<span class="rx-chip cours">🔄 ' + rxEsc(moi ? 'Toi' : (mag || 'en cours')) + '</span>'; btn = '<button class="rx-btn ' + (moi ? '' : 'alt') + '" data-rxopen="' + s.ID + '">' + (moi ? 'Continuer' : 'Reprendre') + '</button>'; }
+        else { etat = '<span class="rx-chip att">à prendre</span>'; btn = '<button class="rx-btn" data-rxprendre="' + s.ID + '" ' + (selectedMagasinier ? '' : 'disabled') + '>' + (selectedMagasinier ? 'Prendre' : 'Ton nom ↑') + '</button>'; }
+        return '<div class="rx-row"><div class="rx-row-l"><div class="rx-row-t">' + rxEsc(s.Fournisseur || s.Numero_BL) + '</div>' + etat + '</div>' + btn + '</div>';
+      }).join('') + '</div>';
+  }).join('');
+}
+function rxBlocClick(e){
+  const p = e.target.closest('[data-rxprendre]'), o = e.target.closest('[data-rxopen]');
+  if (p) return rxPrendre(+p.dataset.rxprendre, p);
+  if (o) {
+    const s = (sessionsCache || []).find(x => x.ID === +o.dataset.rxopen); if (!s) return;
+    const mag = choiceValue(s.Magasinier);
+    if (mag && mag !== selectedMagasinier && !confirm(mag + ' a commencé cette fiche.\n\nReprends-la seulement s\'il a arrêté : si vous comptez à deux sur la même fiche, des quantités seront perdues.\n\nReprendre ?')) return;
+    rxOuvrir(s);
+  }
+}
+function rxFlux(nom){ return (CONFIG.FLOWS[nom] || '').trim(); }
+function rxPost(nom, body){
+  const url = rxFlux(nom);
+  if (!url) return Promise.reject(new Error('flux ' + nom + ' non configuré'));
+  return fetch(url, { method: 'POST', mode: 'no-cors', keepalive: !body.Photo_B64, headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(Object.assign({ _token: CONFIG.TOKEN }, body)) });
+}
+// Le flux de session reçoit toujours les mêmes champs (vides si inutiles) : son schéma JSON les exige tous.
+function rxCorpsSession(o){
+  return Object.assign({ action: '', ID_Session: 0, Magasinier: '', Repris_Par: '', Nb_Unites: 0, Nb_Ecarts: 0, Nb_Abimes: 0, Conteneur: '', Fournisseur: '', Sujet: '', Resume: '' }, o);
+}
+function rxPrendre(id, btn){
+  if (!selectedMagasinier) { showToast('Choisis d\'abord ton nom.'); return; }
+  const s = (sessionsCache || []).find(x => x.ID === id); if (!s) return;
+  if (!rxFlux('RECEPTION_SESSION')) { alert('La réception n\'est pas encore activée sur ce portail (flux à configurer par Nicolas).'); return; }
+  btn.disabled = true; btn.textContent = '…';
+  rxPost('RECEPTION_SESSION', rxCorpsSession({ action: 'prendre', ID_Session: id, Magasinier: selectedMagasinier }))
+    .then(() => { s.Statut = 'En cours de scan'; s.Magasinier = selectedMagasinier; rxRenderBloc(); rxOuvrir(s); })
+    .catch(() => { btn.disabled = false; btn.textContent = 'Prendre'; showToast('🔴 Pas de connexion — réessaie.'); });
+}
+
+// ── Écran de comptage ──
+function rxDraftKey(sid){ return 'rx_draft_' + sid; }
+function rxDraftLire(sid){ try { return JSON.parse(localStorage.getItem(rxDraftKey(sid)) || 'null'); } catch (e) { return null; } }
+function rxDraftSauver(){
+  if (!RXS) return;
+  const d = { t: Date.now(), lignes: RXS.lines.map(l => ({ cle: l.cle, ref: l.ref, des: l.des, att: l.att, bc: l.bc, rec: l.rec, ab: l.ab, obs: l.obs, ph: l.ph, nouv: l.nouv, sync: l.sync })) };
+  try { localStorage.setItem(rxDraftKey(RXS.sess.ID), JSON.stringify(d)); } catch (e) {}
+}
+function rxOuvrir(s){
+  stopListAutoRefresh();
+  RXS = { sess: s, lines: [], filtre: 'reste', q: '', charge: false };
+  let ov = document.getElementById('rxScreen');
+  if (!ov) {
+    ov = document.createElement('div'); ov.id = 'rxScreen'; document.body.appendChild(ov);
+    ov.addEventListener('click', rxClick);
+    ov.addEventListener('input', e => { if (e.target.id === 'rxQ') { RXS.q = e.target.value; rxRenderLignes(); } });
+    ov.addEventListener('change', rxPhotoChange);
+  }
+  ov.style.display = 'flex'; document.body.style.overflow = 'hidden';
+  if (typeof wakeOn === 'function') wakeOn();
+  rxRender();
+  fetch(CONFIG.FLOWS.LISTE_LIGNES).then(r => r.json()).then(data => {
+    const all = Array.isArray(data) ? data : (data.value || []);
+    const mine = all.filter(l => String(lineSessionId(l)) === String(s.ID));
+    RXS.lines = mine.map(l => ({ cle: l.Title || ('RX-' + s.ID + '-id' + (l.ID || l.Id)), ref: (l.Reference_Article || '').toString().trim(), des: l.Designation || '',
+      att: rxNum(l.Quantite_Attendue), rec: rxNum(l.Quantite_Scannee), ab: rxNum(l.Quantite_Abimee), obs: l.Observation || '', bc: l.N_Commande || '',
+      ph: l.Attachments ? 1 : 0, nouv: rxNum(l.Quantite_Attendue) === 0 && !l.ID_Ligne_Cmd, sync: 'ok' }));
+    rxAppliquerBrouillon();
+    RXS.charge = true; rxRender();
+  }).catch(() => {
+    const d = rxDraftLire(s.ID);
+    if (d) { RXS.lines = d.lignes.map(x => Object.assign({}, x)); RXS.charge = true; showToast('📡 Hors connexion — comptage repris depuis le téléphone'); }
+    else showToast('🔴 Impossible de charger les articles — vérifie la connexion.');
+    rxRender();
+  });
+}
+function rxAppliquerBrouillon(){
+  const d = rxDraftLire(RXS.sess.ID); if (!d) return;
+  let n = 0;
+  d.lignes.forEach(x => {
+    const l = RXS.lines.find(y => y.cle === x.cle);
+    if (!l) { if (x.nouv) { RXS.lines.push(Object.assign({}, x, { sync: 'att' })); n++; } return; }
+    if (x.sync !== 'ok' && (x.rec !== l.rec || x.ab !== l.ab || (x.obs || '') !== (l.obs || ''))) { l.rec = x.rec; l.ab = x.ab; l.obs = x.obs; l.sync = 'att'; n++; }
+    l.ph = Math.max(l.ph, x.ph || 0);
+  });
+  if (n) { showToast('♻️ ' + n + ' article(s) repris depuis le téléphone — envoi en cours'); RXS.lines.filter(l => l.sync === 'att').forEach(rxPlanifier); }
+}
+function rxFermer(){
+  rxDraftSauver();
+  const ov = document.getElementById('rxScreen'); if (ov) ov.style.display = 'none';
+  document.body.style.overflow = ''; RXS = null;
+  if (typeof wakeOff === 'function') wakeOff();
+  fetchSessions(); startListAutoRefresh();
+}
+function rxEtat(l){
+  if (l.rec === 0 && l.ab === 0) return l.att > 0 ? 'vide' : 'nouv';
+  if (l.att === 0) return 'exc';
+  if (l.rec < l.att) return 'part';
+  if (l.rec > l.att) return 'exc';
+  return l.ab ? 'ab' : 'ok';
+}
+function rxStats(){
+  const L = RXS.lines, P = L.filter(l => l.att > 0);
+  return {
+    refs: P.length, refsOk: P.filter(l => l.rec >= l.att).length,
+    uAtt: P.reduce((s, l) => s + l.att, 0), uRec: L.reduce((s, l) => s + l.rec, 0), uAb: L.reduce((s, l) => s + l.ab, 0),
+    reste: P.filter(l => l.rec < l.att).length, ecarts: L.filter(l => l.rec !== l.att || l.ab > 0).length,
+    abimes: L.filter(l => l.ab > 0).length, attente: L.filter(l => l.sync !== 'ok').length, nouv: L.filter(l => l.att === 0).length
+  };
+}
+function rxRender(){
+  const ov = document.getElementById('rxScreen'); if (!ov || !RXS) return;
+  const s = RXS.sess;
+  const off = !rxFlux('RECEPTION_LIGNE');
+  ov.innerHTML = '<div class="rx-top"><button class="rx-back" data-rx="fermer">‹</button><div class="rx-tt"><div class="rx-t1">' + rxEsc(s.Fournisseur || s.Numero_BL) + '</div><div class="rx-t2">🚢 ' + rxEsc(s.Conteneur || '') + ' · ' + rxEsc(selectedMagasinier || '') + '</div></div><div id="rxSync" class="rx-sync"></div></div>'
+    + (off ? '<div class="rx-off">⚠️ Réception pas encore activée (flux à configurer) : ton comptage reste sur le téléphone, rien n\'est envoyé.</div>' : '')
+    + '<div id="rxHead" class="rx-head"></div>'
+    + '<div id="rxList" class="rx-list">' + (RXS.charge ? '' : '<div class="rx-vide">Chargement des articles…</div>') + '</div>'
+    + '<div class="rx-bot"><button class="rx-b2" data-rx="nouveau">＋ Article non prévu</button><button class="rx-b1" data-rx="valider">✓ Valider le contrôle</button></div>'
+    + '<input type="file" id="rxPhotoIn" accept="image/*" capture="environment" style="display:none">';
+  if (RXS.charge) { rxRenderHead(); rxRenderLignes(); }
+  rxMajSync();
+}
+function rxRenderHead(){
+  const h = document.getElementById('rxHead'); if (!h) return;
+  const st = rxStats();
+  const pct = st.uAtt ? Math.min(100, Math.round(st.uRec / st.uAtt * 100)) : 0;
+  const f = RXS.filtre;
+  const chip = (k, lab, n) => '<button class="rx-f ' + (f === k ? 'on' : '') + '" data-rxf="' + k + '">' + lab + (n != null ? ' <b>' + n + '</b>' : '') + '</button>';
+  h.innerHTML = '<div class="rx-kpi"><div><b>' + st.refsOk + '</b>/' + st.refs + '<small>articles complets</small></div><div><b>' + rxFmt(st.uRec) + '</b>/' + rxFmt(st.uAtt) + '<small>unités</small></div><div class="' + (st.uAb ? 'ko' : '') + '"><b>' + rxFmt(st.uAb) + '</b><small>abîmé' + (st.uAb > 1 ? 's' : '') + '</small></div></div>'
+    + '<div class="rx-prog big"><span style="width:' + pct + '%"></span></div>'
+    + '<div class="rx-fs">' + chip('reste', 'À trouver', st.reste) + chip('tout', 'Tout', RXS.lines.length) + chip('ecarts', 'Écarts', st.ecarts) + chip('abimes', 'Abîmés', st.abimes) + '</div>'
+    + '<input id="rxQ" class="rx-q" type="search" placeholder="🔎 Chercher une réf. ou un mot (ex. coude 100)" value="' + rxEsc(RXS.q) + '">';
+}
+function rxFiltrees(){
+  const q = RXS.q.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return RXS.lines.map((l, i) => ({ l, i })).filter(({ l }) => {
+    if (q) { const hay = (l.ref + ' ' + l.des + ' ' + l.bc).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); if (!q.split(/\s+/).every(w => hay.includes(w))) return false; }
+    if (RXS.filtre === 'reste') return l.att > 0 && l.rec < l.att;
+    if (RXS.filtre === 'ecarts') return l.rec !== l.att || l.ab > 0;
+    if (RXS.filtre === 'abimes') return l.ab > 0;
+    return true;
+  });
+}
+function rxCarte(l, i){
+  const e = rxEtat(l);
+  const lab = { vide: '', part: 'manque ' + rxFmt(l.att - l.rec), ok: '✓ complet', exc: l.att ? '+' + rxFmt(l.rec - l.att) + ' en trop' : 'non prévu', ab: '✓ complet', nouv: 'non prévu' }[e];
+  return '<div class="rx-card e-' + e + '" data-i="' + i + '">'
+    + '<div class="rx-c-top"><div class="rx-c-des">' + rxEsc(l.des || l.ref || 'Article') + '</div>' + (lab ? '<span class="rx-tag e-' + e + '">' + lab + '</span>' : '') + '</div>'
+    + '<div class="rx-c-ref">' + rxEsc(l.ref) + (l.bc ? ' · BC ' + rxEsc(l.bc) : '') + (l.sync !== 'ok' ? ' · <span class="rx-pend">⏳</span>' : '') + '</div>'
+    + '<div class="rx-c-cpt"><div class="rx-att">Attendu<b>' + rxFmt(l.att) + '</b></div>'
+    + '<button class="rx-m" data-rxa="moins" data-i="' + i + '" ' + (l.rec <= 0 ? 'disabled' : '') + '>−</button>'
+    + '<button class="rx-val" data-rxa="saisir" data-i="' + i + '" title="Taper la quantité">' + rxFmt(l.rec) + '</button>'
+    + '<button class="rx-p" data-rxa="plus" data-i="' + i + '">＋1</button></div>'
+    + '<div class="rx-c-ab"><span>Abîmé</span><button class="rx-sm" data-rxa="abm" data-i="' + i + '" ' + (l.ab <= 0 ? 'disabled' : '') + '>−</button><b class="' + (l.ab ? 'ko' : '') + '">' + rxFmt(l.ab) + '</b><button class="rx-sm ko" data-rxa="abp" data-i="' + i + '">＋</button>'
+    + '<button class="rx-sm ph ' + (l.ph ? 'on' : '') + '" data-rxa="photo" data-i="' + i + '">📷' + (l.ph ? ' ' + l.ph : '') + '</button>'
+    + '<button class="rx-sm ' + (l.obs ? 'on' : '') + '" data-rxa="obs" data-i="' + i + '" title="Remarque">💬</button></div>'
+    + (l.obs ? '<div class="rx-c-obs">💬 ' + rxEsc(l.obs) + '</div>' : '')
+    + '</div>';
+}
+function rxRenderLignes(){
+  const box = document.getElementById('rxList'); if (!box || !RXS) return;
+  const F = rxFiltrees();
+  if (!RXS.lines.length) { box.innerHTML = '<div class="rx-vide">Aucun article attendu sur cette fiche (BC pas encore importé).<br>Ajoute ce que tu trouves avec « ＋ Article non prévu ».</div>'; return; }
+  box.innerHTML = F.length ? F.map(({ l, i }) => rxCarte(l, i)).join('')
+    : '<div class="rx-vide">' + (RXS.filtre === 'reste' && !RXS.q ? '🎉 Tout est trouvé ! Vérifie les abîmés puis « Valider le contrôle ».' : 'Rien dans ce filtre.') + '</div>';
+}
+function rxMajCarte(i){
+  const el = document.querySelector('#rxList .rx-card[data-i="' + i + '"]');
+  const l = RXS.lines[i];
+  if (el) {
+    // en filtre « À trouver », une ligne complétée reste affichée jusqu'au prochain rafraîchissement (pas de saut sous le doigt)
+    const tmp = document.createElement('div'); tmp.innerHTML = rxCarte(l, i); el.replaceWith(tmp.firstChild);
+  }
+  rxRenderHead(); rxMajSync();
+}
+function rxModifier(i, champ, val){
+  const l = RXS.lines[i]; if (!l) return;
+  l[champ] = Math.max(0, Math.round(val * 100) / 100);
+  l.sync = 'att'; rxDraftSauver(); rxMajCarte(i); rxPlanifier(l);
+  if (champ === 'rec' && l.att > 0 && l.rec === l.att && navigator.vibrate) navigator.vibrate(60);
+}
+function rxPlanifier(l){
+  clearTimeout(l._t);
+  l._t = setTimeout(() => rxEnvoyer(l), 1200);
+}
+function rxEnvoyer(l, photo){
+  if (!RXS || !rxFlux('RECEPTION_LIGNE')) return Promise.resolve();
+  const sess = RXS.sess; const v = { rec: l.rec, ab: l.ab, obs: l.obs };
+  const body = { Cle: l.cle, ID_Session: sess.ID, Reference_Article: l.ref, Designation: l.des, Quantite_Scannee: l.rec, Quantite_Abimee: l.ab,
+    Fournisseur: sess.Fournisseur || '', N_Commande: l.bc || '', Observation: l.obs || '',
+    Photo_B64: photo ? photo.b64 : '', Photo_Nom: photo ? photo.nom : '' };   // toujours tous les champs : le schéma du flux les exige
+  l.sync = 'env'; rxMajSync();
+  rxQueue = rxQueue.then(() => rxPost('RECEPTION_LIGNE', body)
+    .then(() => { if (l.rec === v.rec && l.ab === v.ab && l.obs === v.obs) l.sync = 'ok'; else rxPlanifier(l); })
+    .catch(() => { l.sync = 'err'; rxRetry(); if (photo) { l.ph = Math.max(0, l.ph - 1); showToast('🔴 Photo non envoyée (connexion) — reprends-la'); } })
+    .finally(() => { if (RXS && RXS.sess === sess) { rxDraftSauver(); rxMajSync(); const i = RXS.lines.indexOf(l); if (i >= 0 && document.querySelector('#rxList .rx-card[data-i="' + i + '"] .rx-pend') && l.sync === 'ok') rxMajCarte(i); } })
+  ).then(() => new Promise(r => setTimeout(r, 120)));
+  return rxQueue;
+}
+function rxRetry(){
+  if (rxRetryTimer) return;
+  rxRetryTimer = setTimeout(() => { rxRetryTimer = null; if (RXS) RXS.lines.filter(l => l.sync === 'err' || l.sync === 'att').forEach(l => rxEnvoyer(l)); }, 15000);
+}
+window.addEventListener('online', () => { if (RXS) RXS.lines.filter(l => l.sync !== 'ok').forEach(l => rxEnvoyer(l)); });
+function rxMajSync(){
+  const el = document.getElementById('rxSync'); if (!el || !RXS) return;
+  const n = RXS.lines.filter(l => l.sync !== 'ok').length, err = RXS.lines.some(l => l.sync === 'err');
+  el.className = 'rx-sync ' + (err ? 'err' : n ? 'att' : 'ok');
+  el.textContent = err ? '⚠ hors ligne · ' + n : n ? '⏳ ' + n : '✓ enregistré';
+}
+let rxPhotoIdx = null;
+function rxClick(e){
+  const b = e.target.closest('[data-rx],[data-rxa],[data-rxf]'); if (!b || !RXS) return;
+  if (b.dataset.rxf) { RXS.filtre = b.dataset.rxf; rxRenderHead(); rxRenderLignes(); document.getElementById('rxList').scrollTop = 0; return; }
+  const a = b.dataset.rx;
+  if (a === 'fermer') return rxFermer();
+  if (a === 'nouveau') return rxNouveau();
+  if (a === 'valider') return rxValider();
+  const i = +b.dataset.i, l = RXS.lines[i]; if (!l) return;
+  switch (b.dataset.rxa) {
+    case 'plus': rxModifier(i, 'rec', l.rec + 1); break;
+    case 'moins': rxModifier(i, 'rec', l.rec - 1); break;
+    case 'saisir': { const v = prompt('Quantité trouvée pour :\n' + (l.des || l.ref) + '\n(attendu ' + rxFmt(l.att) + ')', rxFmt(l.rec)); if (v !== null && v.trim() !== '' && !isNaN(rxNum(v))) rxModifier(i, 'rec', rxNum(v)); break; }
+    case 'abp':
+      rxModifier(i, 'ab', l.ab + 1);
+      if (!l.ph) { rxPhotoIdx = i; showToast('📷 Prends la casse en photo'); document.getElementById('rxPhotoIn').click(); }
+      break;
+    case 'abm': rxModifier(i, 'ab', l.ab - 1); break;
+    case 'photo': rxPhotoIdx = i; document.getElementById('rxPhotoIn').click(); break;
+    case 'obs': { const v = prompt('Remarque sur :\n' + (l.des || l.ref), l.obs || ''); if (v !== null) { l.obs = v.trim().slice(0, 500); l.sync = 'att'; rxDraftSauver(); rxMajCarte(i); rxPlanifier(l); } break; }
+  }
+}
+function rxPhotoChange(e){
+  if (e.target.id !== 'rxPhotoIn' || !RXS) return;
+  const f = e.target.files && e.target.files[0]; const i = rxPhotoIdx; e.target.value = '';
+  if (!f || i == null || !RXS.lines[i]) return;
+  const l = RXS.lines[i];
+  if (!rxFlux('RECEPTION_LIGNE')) { showToast('Photo non envoyée : réception pas encore activée'); return; }
+  showToast('📷 Envoi de la photo…');
+  compresserPhoto(f).then(dataUrl => {
+    l.ph = (l.ph || 0) + 1; rxMajCarte(i); clearTimeout(l._t);
+    const nom = (String(l.ref || 'article').replace(/[^\w-]+/g, '_') + '_' + Date.now() + '.jpg');
+    return rxEnvoyer(l, { b64: dataUrl.split(',')[1], nom });
+  }).then(() => showToast('📷 Photo envoyée')).catch(() => showToast('🔴 Photo illisible — reprends-la.'));
+}
+function rxNouveau(){
+  const ref = prompt('Article NON PRÉVU trouvé dans le conteneur\n\nRéférence (si visible, sinon laisse vide) :', '');
+  if (ref === null) return;
+  const cat = ref.trim() && typeof lookupCatalogue === 'function' ? lookupCatalogue(ref.trim()) : null;
+  const des = prompt('Désignation :', cat && (cat.designation || cat.des || cat.Designation) || '');
+  if (des === null || (!des.trim() && !ref.trim())) return;
+  const q = prompt('Quantité trouvée :', '1'); if (q === null) return;
+  const l = { cle: 'RX-' + RXS.sess.ID + '-N' + Date.now().toString(36), ref: ref.trim(), des: des.trim(), att: 0, rec: Math.max(0, rxNum(q)), ab: 0, obs: '', bc: '', ph: 0, nouv: true, sync: 'att' };
+  RXS.lines.push(l); RXS.filtre = 'ecarts'; rxDraftSauver(); rxRenderHead(); rxRenderLignes(); rxEnvoyer(l);
+  showToast('Ajouté en « non prévu » — Patricia le verra');
+}
+function rxValider(){
+  if (!RXS.charge) return;
+  if (!rxFlux('RECEPTION_SESSION') || !rxFlux('RECEPTION_LIGNE')) { alert('Validation impossible : la réception n\'est pas encore activée (flux à configurer par Nicolas). Ton comptage est gardé sur le téléphone.'); return; }
+  const L = RXS.lines, st = rxStats();
+  const manq = L.filter(l => l.att > 0 && l.rec < l.att), exc = L.filter(l => l.rec > l.att), ab = L.filter(l => l.ab > 0);
+  const nonTrouves = manq.filter(l => l.rec === 0);
+  const coul = (manq.length || exc.length || ab.length) ? 'rouge' : 'vert';
+  const li = (arr, f) => arr.map(l => '<li><b>' + rxEsc(l.des || l.ref) + '</b> <span>' + rxEsc(l.ref) + '</span> — ' + f(l) + '</li>').join('');
+  let ov = document.getElementById('rxValOv');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'rxValOv'; document.body.appendChild(ov); }
+  ov.className = 'rx-valov ' + coul;
+  ov.innerHTML = '<div class="rx-valb"><div class="rx-valh">' + (coul === 'vert' ? '🟢 Tout est conforme' : '🔴 Contrôle avec écarts') + '</div>'
+    + '<div class="rx-vals">' + rxFmt(st.uRec) + ' unités comptées sur ' + rxFmt(st.uAtt) + ' attendues</div>'
+    + (manq.length ? '<div class="rx-valg man"><h4>Manquants (' + manq.length + ')</h4><ul>' + li(manq, l => 'trouvé ' + rxFmt(l.rec) + ' / ' + rxFmt(l.att)) + '</ul></div>' : '')
+    + (exc.length ? '<div class="rx-valg exc"><h4>En trop / non prévus (' + exc.length + ')</h4><ul>' + li(exc, l => l.att ? '+' + rxFmt(l.rec - l.att) : rxFmt(l.rec) + ' non prévu') + '</ul></div>' : '')
+    + (ab.length ? '<div class="rx-valg ab"><h4>Abîmés (' + ab.length + ')</h4><ul>' + li(ab, l => rxFmt(l.ab) + ' abîmé' + (l.ph ? ' · 📷 ' + l.ph : ' · <b>sans photo</b>')) + '</ul></div>' : '')
+    + (nonTrouves.length ? '<label class="rx-chk"><input type="checkbox" id="rxConfNT"> Je confirme avoir bien cherché les ' + nonTrouves.length + ' article(s) non trouvé(s)</label>' : '')
+    + '<div class="rx-valbtn"><button class="rx-b2" id="rxValNon">Continuer le comptage</button><button class="rx-b1" id="rxValOui">✓ Valider et envoyer à Patricia</button></div></div>';
+  ov.style.display = 'flex';
+  document.getElementById('rxValNon').onclick = () => { ov.style.display = 'none'; };
+  document.getElementById('rxValOui').onclick = () => {
+    if (nonTrouves.length && !document.getElementById('rxConfNT').checked) { showToast('Coche la confirmation des articles non trouvés'); return; }
+    rxValiderEnvoi(ov, { manq, exc, ab, st, coul });
+  };
+}
+function rxValiderEnvoi(ov, r){
+  const btn = document.getElementById('rxValOui'); btn.disabled = true; btn.textContent = '⏳ Envoi…';
+  const s = RXS.sess, sess = s;
+  RXS.lines.forEach(l => clearTimeout(l._t));
+  const restants = RXS.lines.filter(l => l.sync !== 'ok');
+  restants.forEach(l => rxEnvoyer(l));
+  const tr = (arr, f) => arr.map(l => '<tr><td style="padding:4px 8px;border:1px solid #ddd">' + rxEsc(l.ref) + '</td><td style="padding:4px 8px;border:1px solid #ddd">' + rxEsc(l.des) + '</td><td style="padding:4px 8px;border:1px solid #ddd">' + f(l) + '</td></tr>').join('');
+  const nEc = r.manq.length + r.exc.length + r.ab.filter(l => !r.manq.includes(l) && !r.exc.includes(l)).length;
+  const qui = choiceValue(s.Magasinier) || selectedMagasinier;
+  const resume = '<p>Contrôle du conteneur <b>' + rxEsc(s.Conteneur || '') + '</b> — fournisseur <b>' + rxEsc(s.Fournisseur || '') + '</b> validé par <b>' + rxEsc(selectedMagasinier) + '</b>.</p>'
+    + '<p>' + rxFmt(r.st.uRec) + ' unités comptées sur ' + rxFmt(r.st.uAtt) + ' attendues · ' + (nEc ? '<b style="color:#b91c1c">' + nEc + ' écart(s)</b>' : '<b style="color:#15803d">aucun écart</b>') + '</p>'
+    + (nEc ? '<table style="border-collapse:collapse;font-size:13px"><tr><th style="padding:4px 8px;border:1px solid #ddd;background:#f1f5f9">Réf.</th><th style="padding:4px 8px;border:1px solid #ddd;background:#f1f5f9">Désignation</th><th style="padding:4px 8px;border:1px solid #ddd;background:#f1f5f9">Écart</th></tr>'
+      + tr(r.manq, l => 'manque ' + rxFmt(l.att - l.rec) + ' (trouvé ' + rxFmt(l.rec) + '/' + rxFmt(l.att) + ')') + tr(r.exc, l => l.att ? '+' + rxFmt(l.rec - l.att) + ' en trop' : rxFmt(l.rec) + ' non prévu') + tr(r.ab, l => rxFmt(l.ab) + ' abîmé(s)' + (l.ph ? ' — photo' : '') + (l.obs ? ' — ' + rxEsc(l.obs) : '')) + '</table>' : '')
+    + '<p><a href="' + RX_ACHATS + '?dossier=' + encodeURIComponent(s.ID_Arrivage || '') + '">Ouvrir le dossier dans le Portail Achats</a></p>';
+  const sujet = 'Contrôle conteneur ' + (s.Conteneur || '') + ' — ' + (s.Fournisseur || '') + ' : ' + (nEc ? nEc + ' écart(s)' : 'conforme');
+  rxQueue.then(() => rxPost('RECEPTION_SESSION', rxCorpsSession({ action: 'valider', ID_Session: s.ID, Magasinier: qui, Repris_Par: qui !== selectedMagasinier ? selectedMagasinier : '',
+      Nb_Unites: r.st.uRec, Nb_Ecarts: nEc, Nb_Abimes: r.st.uAb, Conteneur: s.Conteneur || '', Fournisseur: s.Fournisseur || '', Sujet: sujet, Resume: resume })))
+    .then(() => {
+      if (RXS.lines.some(l => l.sync === 'err')) throw new Error('lignes');
+      try { localStorage.removeItem(rxDraftKey(sess.ID)); } catch (e) {}
+      s.Statut = 'Contrôlée';
+      ov.style.display = 'none';
+      showToast('✅ Contrôle envoyé à Patricia');
+      rxFermer();
+    })
+    .catch(() => { btn.disabled = false; btn.textContent = '✓ Valider et envoyer à Patricia'; showToast('🔴 Envoi incomplet (connexion) — réessaie, rien n\'est perdu.'); });
+}
+
 </script>
 
 </body>
