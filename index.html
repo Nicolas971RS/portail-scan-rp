@@ -513,6 +513,29 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
 .rx-valg.man{background:#fef3c7}.rx-valg.exc{background:#ffedd5}.rx-valg.ab{background:#fee2e2}
 .rx-chk{display:flex;gap:8px;align-items:flex-start;font-size:14px;font-weight:600;margin:10px 0;padding:10px;border:2px solid #f59e0b;border-radius:10px}.rx-chk input{width:22px;height:22px;flex:none}
 .rx-valbtn{display:flex;gap:8px;margin-top:12px}
+
+.rx-val small{display:block;font-size:10.5px;font-weight:700;color:#0e7490;margin-top:-2px}
+.rx-val{line-height:1.05}
+#rxSheetOv{position:fixed;inset:0;z-index:960;background:rgba(15,23,42,.55);display:none;align-items:flex-end;justify-content:center}
+.rx-sheet{background:#fff;width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:14px 16px calc(16px + env(safe-area-inset-bottom));max-height:90vh;overflow:auto;animation:rxUp .16s ease-out}
+@keyframes rxUp{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+.rx-sh-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.rx-sh-t{font-weight:800;font-size:17px;line-height:1.3}.rx-sh-x{border:0;background:#f1f5f9;border-radius:10px;width:40px;height:40px;font-size:16px;font-weight:700;flex:none}
+.rx-sh-sub{font-size:12.5px;color:#64748b;margin:2px 0 10px;font-family:inherit}
+.rx-sh-etat{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;text-align:center}
+.rx-sh-etat>div{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:6px;font-size:11.5px;color:#64748b}.rx-sh-etat b{display:block;font-size:20px;color:#0f172a}
+.rx-sh-etat .w b{color:#b45309}.rx-sh-etat .k b{color:#c2410c}.rx-sh-etat .o b{color:#16a34a}
+.rx-sh-lab{display:block;font-size:12.5px;font-weight:700;color:#334155;margin:8px 0 4px}
+.rx-sh-in{width:100%;border:2px solid #94a3b8;border-radius:12px;padding:12px;font-size:16px;font-family:inherit;box-sizing:border-box}
+.rx-sh-in:focus{outline:none;border-color:#0e7490;box-shadow:0 0 0 3px rgba(14,116,144,.18)}
+.rx-sh-in.big{font-size:30px;font-weight:800;text-align:center;padding:10px}
+.rx-sh-chips{display:flex;gap:6px;margin:10px 0;overflow-x:auto}.rx-sh-chips.wrap{flex-wrap:wrap}
+.rx-sh-chips button{border:1.5px solid #cbd5e1;background:#fff;border-radius:20px;padding:9px 13px;font-size:14px;font-weight:700;white-space:nowrap;flex:none}
+.rx-sh-chips button.on{background:#e0f2fe;border-color:#0e7490}
+.rx-sh-prev{min-height:20px;font-size:14px;color:#0f172a;text-align:center;margin:4px 0 8px}
+.rx-sh-ok{width:100%;height:54px;border:0;border-radius:12px;background:#0e7490;color:#fff;font-size:16px;font-weight:800;margin-top:4px}
+.rx-sh-row{display:flex;gap:8px;margin-top:8px}.rx-sh-2{flex:1;height:46px;border:2px solid #1a2744;background:#fff;color:#1a2744;border-radius:12px;font-size:14px;font-weight:700}
+.rx-sh-2.ko{border-color:#dc2626;color:#dc2626}
 </style>
 </head>
 <body>
@@ -3584,7 +3607,7 @@ function rxCarte(l, i){
     + '<div class="rx-c-ref">' + rxEsc(l.ref) + (l.bc ? ' · BC ' + rxEsc(l.bc) : '') + (l.sync !== 'ok' ? ' · <span class="rx-pend">⏳</span>' : '') + '</div>'
     + '<div class="rx-c-cpt"><div class="rx-att">Attendu<b>' + rxFmt(l.att) + '</b></div>'
     + '<button class="rx-m" data-rxa="moins" data-i="' + i + '" ' + (l.rec <= 0 ? 'disabled' : '') + '>−</button>'
-    + '<button class="rx-val" data-rxa="saisir" data-i="' + i + '" title="Taper la quantité">' + rxFmt(l.rec) + '</button>'
+    + '<button class="rx-val" data-rxa="saisir" data-i="' + i + '" title="Ajouter une quantité">' + rxFmt(l.rec) + '<small>＋ saisir</small></button>'
     + '<button class="rx-p" data-rxa="plus" data-i="' + i + '">＋1</button></div>'
     + '<div class="rx-c-ab"><span>Abîmé</span><button class="rx-sm" data-rxa="abm" data-i="' + i + '" ' + (l.ab <= 0 ? 'disabled' : '') + '>−</button><b class="' + (l.ab ? 'ko' : '') + '">' + rxFmt(l.ab) + '</b><button class="rx-sm ko" data-rxa="abp" data-i="' + i + '">＋</button>'
     + '<button class="rx-sm ph ' + (l.ph ? 'on' : '') + '" data-rxa="photo" data-i="' + i + '">📷' + (l.ph ? ' ' + l.ph : '') + '</button>'
@@ -3655,14 +3678,14 @@ function rxClick(e){
   switch (b.dataset.rxa) {
     case 'plus': rxModifier(i, 'rec', l.rec + 1); break;
     case 'moins': rxModifier(i, 'rec', l.rec - 1); break;
-    case 'saisir': { const v = prompt('Quantité trouvée pour :\n' + (l.des || l.ref) + '\n(attendu ' + rxFmt(l.att) + ')', rxFmt(l.rec)); if (v !== null && v.trim() !== '' && !isNaN(rxNum(v))) rxModifier(i, 'rec', rxNum(v)); break; }
+    case 'saisir': rxSheetQte(i); break;
     case 'abp':
       rxModifier(i, 'ab', l.ab + 1);
       if (!l.ph) { rxPhotoIdx = i; showToast('📷 Prends la casse en photo'); document.getElementById('rxPhotoIn').click(); }
       break;
     case 'abm': rxModifier(i, 'ab', l.ab - 1); break;
     case 'photo': rxPhotoIdx = i; document.getElementById('rxPhotoIn').click(); break;
-    case 'obs': { const v = prompt('Remarque sur :\n' + (l.des || l.ref), l.obs || ''); if (v !== null) { l.obs = v.trim().slice(0, 500); l.sync = 'att'; rxDraftSauver(); rxMajCarte(i); rxPlanifier(l); } break; }
+    case 'obs': rxSheetObs(i); break;
   }
 }
 function rxPhotoChange(e){
@@ -3678,16 +3701,81 @@ function rxPhotoChange(e){
     return rxEnvoyer(l, { b64: dataUrl.split(',')[1], nom });
   }).then(() => showToast('📷 Photo envoyée')).catch(() => showToast('🔴 Photo illisible — reprends-la.'));
 }
-function rxNouveau(){
-  const ref = prompt('Article NON PRÉVU trouvé dans le conteneur\n\nRéférence (si visible, sinon laisse vide) :', '');
-  if (ref === null) return;
-  const cat = ref.trim() && typeof lookupCatalogue === 'function' ? lookupCatalogue(ref.trim()) : null;
-  const des = prompt('Désignation :', cat && (cat.designation || cat.des || cat.Designation) || '');
-  if (des === null || (!des.trim() && !ref.trim())) return;
-  const q = prompt('Quantité trouvée :', '1'); if (q === null) return;
-  const l = { cle: 'RX-' + RXS.sess.ID + '-N' + Date.now().toString(36), ref: ref.trim(), des: des.trim(), att: 0, rec: Math.max(0, rxNum(q)), ab: 0, obs: '', bc: '', ph: 0, nouv: true, sync: 'att' };
-  RXS.lines.push(l); RXS.filtre = 'ecarts'; rxDraftSauver(); rxRenderHead(); rxRenderLignes(); rxEnvoyer(l);
-  showToast('Ajouté en « non prévu » — Patricia le verra');
+function rxNouveau(){ rxSheetNouveau(); }
+// ── Panneaux tactiles (remplacent les fenêtres prompt du navigateur) ──
+function rxSheet(titre, corps, onMount){
+  let ov = document.getElementById('rxSheetOv');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'rxSheetOv'; document.body.appendChild(ov);
+    ov.addEventListener('click', e => { if (e.target === ov) rxSheetFermer(); }); }
+  ov.innerHTML = '<div class="rx-sheet"><div class="rx-sh-h"><div class="rx-sh-t">' + titre + '</div><button class="rx-sh-x" data-sh="x">✕</button></div>' + corps + '</div>';
+  ov.style.display = 'flex';
+  ov.querySelector('[data-sh="x"]').onclick = rxSheetFermer;
+  if (onMount) onMount(ov);
+}
+function rxSheetFermer(){ const ov = document.getElementById('rxSheetOv'); if (ov) { ov.style.display = 'none'; ov.innerHTML = ''; } }
+function rxSheetQte(i){
+  const l = RXS.lines[i]; if (!l) return;
+  const reste = l.att - l.rec;
+  rxSheet(rxEsc(l.des || l.ref),
+    '<div class="rx-sh-sub">' + rxEsc(l.ref) + (l.bc ? ' · BC ' + rxEsc(l.bc) : '') + '</div>'
+    + '<div class="rx-sh-etat"><div>Déjà compté<b>' + rxFmt(l.rec) + '</b></div><div>Attendu<b>' + rxFmt(l.att) + '</b></div><div class="' + (reste > 0 ? 'w' : reste < 0 ? 'k' : 'o') + '">' + (reste >= 0 ? 'Reste' : 'En trop') + '<b>' + rxFmt(Math.abs(reste)) + '</b></div></div>'
+    + '<label class="rx-sh-lab">Combien viens-tu de trouver ?</label>'
+    + '<input id="rxShQ" class="rx-sh-in big" type="text" inputmode="decimal" autocomplete="off" placeholder="0">'
+    + '<div class="rx-sh-chips">' + [1, 5, 10, 20, 50, 100].map(n => '<button data-add="' + n + '">+' + n + '</button>').join('') + '</div>'
+    + '<div class="rx-sh-prev" id="rxShPrev"></div>'
+    + '<button class="rx-sh-ok" data-sh="add">＋ Ajouter au compte</button>'
+    + '<div class="rx-sh-row">' + (reste > 0 ? '<button class="rx-sh-2" data-sh="tout">✓ Tout trouvé (' + rxFmt(l.att) + ')</button>' : '') + '<button class="rx-sh-2" data-sh="total">Corriger le total</button></div>',
+    ov => {
+      const q = ov.querySelector('#rxShQ'), prev = ov.querySelector('#rxShPrev');
+      const val = () => rxNum(q.value);
+      const maj = () => { const v = val(); prev.innerHTML = v ? 'Nouveau compte : <b>' + rxFmt(l.rec) + ' + ' + rxFmt(v) + ' = ' + rxFmt(l.rec + v) + '</b>' + (l.att ? ' / ' + rxFmt(l.att) : '') : ''; };
+      q.addEventListener('input', maj);
+      q.addEventListener('keydown', e => { if (e.key === 'Enter') ov.querySelector('[data-sh="add"]').click(); });
+      ov.querySelectorAll('[data-add]').forEach(b => b.onclick = () => { q.value = rxFmt(val() + (+b.dataset.add)); maj(); q.focus(); });
+      ov.querySelector('[data-sh="add"]').onclick = () => { const v = val(); if (!v) { q.focus(); return; } rxModifier(i, 'rec', l.rec + v); rxSheetFermer(); showToast('＋' + rxFmt(v) + ' → ' + rxFmt(l.rec) + (l.att ? ' / ' + rxFmt(l.att) : '')); };
+      const t = ov.querySelector('[data-sh="tout"]'); if (t) t.onclick = () => { rxModifier(i, 'rec', l.att); rxSheetFermer(); };
+      ov.querySelector('[data-sh="total"]').onclick = () => {
+        if (q.value.trim() === '') { showToast('Tape le total exact puis « Corriger le total »'); q.focus(); return; }
+        if (!confirm('Remplacer le compte (' + rxFmt(l.rec) + ') par ' + rxFmt(val()) + ' ?')) return;
+        rxModifier(i, 'rec', val()); rxSheetFermer();
+      };
+      setTimeout(() => q.focus(), 60);
+    });
+}
+const RX_OBS_TYPES = ['Carton écrasé', 'Cassé', 'Fissuré', 'Rayé', 'Mouillé', 'Emballage ouvert', 'Mauvaise référence', 'Pièce manquante', 'Mal étiqueté'];
+function rxSheetObs(i){
+  const l = RXS.lines[i]; if (!l) return;
+  rxSheet('💬 Remarque', '<div class="rx-sh-sub"><b>' + rxEsc(l.des || l.ref) + '</b> · ' + rxEsc(l.ref) + '</div>'
+    + '<div class="rx-sh-chips wrap">' + RX_OBS_TYPES.map(t => '<button data-t="' + rxEsc(t) + '">' + rxEsc(t) + '</button>').join('') + '</div>'
+    + '<textarea id="rxShObs" class="rx-sh-in" rows="3" maxlength="500" placeholder="Décris ce que tu vois (ou touche un bouton ci-dessus)">' + rxEsc(l.obs || '') + '</textarea>'
+    + '<button class="rx-sh-ok" data-sh="ok">Enregistrer la remarque</button>'
+    + (l.obs ? '<div class="rx-sh-row"><button class="rx-sh-2 ko" data-sh="del">Effacer la remarque</button></div>' : ''),
+    ov => {
+      const ta = ov.querySelector('#rxShObs');
+      ov.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { const v = ta.value.trim(); if (!v.toLowerCase().includes(b.dataset.t.toLowerCase())) ta.value = (v ? v + ', ' : '') + b.dataset.t; b.classList.add('on'); });
+      const save = v => { l.obs = v.trim().slice(0, 500); l.sync = 'att'; rxDraftSauver(); rxMajCarte(i); rxPlanifier(l); rxSheetFermer(); };
+      ov.querySelector('[data-sh="ok"]').onclick = () => save(ta.value);
+      const d = ov.querySelector('[data-sh="del"]'); if (d) d.onclick = () => save('');
+    });
+}
+function rxSheetNouveau(){
+  rxSheet('＋ Article non prévu', '<div class="rx-sh-sub">Un article trouvé dans le conteneur qui n\'est pas dans la liste.</div>'
+    + '<label class="rx-sh-lab">Référence (si visible)</label><input id="rxNRef" class="rx-sh-in" type="text" autocomplete="off" placeholder="ex. 49114050040">'
+    + '<label class="rx-sh-lab">Désignation *</label><input id="rxNDes" class="rx-sh-in" type="text" autocomplete="off" placeholder="ex. Manchon réduit 50/40">'
+    + '<label class="rx-sh-lab">Quantité trouvée *</label><input id="rxNQ" class="rx-sh-in big" type="text" inputmode="decimal" value="1">'
+    + '<button class="rx-sh-ok" data-sh="ok">Ajouter l\'article</button>',
+    ov => {
+      const r = ov.querySelector('#rxNRef'), d = ov.querySelector('#rxNDes'), q = ov.querySelector('#rxNQ');
+      r.addEventListener('change', () => { const c = r.value.trim() && typeof lookupCatalogue === 'function' ? lookupCatalogue(r.value.trim()) : null; const des = c && (c.designation || c.des || c.Designation); if (des && !d.value.trim()) d.value = des; });
+      ov.querySelector('[data-sh="ok"]').onclick = () => {
+        if (!d.value.trim() && !r.value.trim()) { d.focus(); showToast('Indique au moins la désignation'); return; }
+        const qt = rxNum(q.value); if (!(qt > 0)) { q.focus(); showToast('Indique la quantité trouvée'); return; }
+        const l = { cle: 'RX-' + RXS.sess.ID + '-N' + Date.now().toString(36), ref: r.value.trim(), des: d.value.trim(), att: 0, rec: qt, ab: 0, obs: '', bc: '', ph: 0, nouv: true, sync: 'att' };
+        RXS.lines.push(l); RXS.filtre = 'ecarts'; rxDraftSauver(); rxRenderHead(); rxRenderLignes(); rxEnvoyer(l);
+        rxSheetFermer(); showToast('Ajouté en « non prévu » — Patricia le verra');
+      };
+      setTimeout(() => r.focus(), 60);
+    });
 }
 function rxValider(){
   if (!RXS.charge) return;
