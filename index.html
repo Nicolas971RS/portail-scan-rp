@@ -9,20 +9,20 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{
-  --navy:#1a2744;
-  --navy-light:#24345a;
-  --violet:#6c63ff;
-  --violet-dark:#564fd8;
-  --violet-soft:#eeecff;
-  --bg:#f4f5f9;
+  --navy:#0a1f3d;
+  --navy-light:#0e2d57;
+  --violet:#1565c0;
+  --violet-dark:#0e2d57;
+  --violet-soft:#e8f2fd;
+  --bg:#f4f6f9;
   --card:#ffffff;
-  --border:#e3e5ee;
-  --text:#1a2744;
+  --border:#dde3ee;
+  --text:#0d1b2e;
   --text-muted:#6b7280;
-  --success:#16a34a;
-  --success-soft:#e9f8ef;
-  --danger:#dc2626;
-  --danger-soft:#fdeeee;
+  --success:#2e7d32;
+  --success-soft:#e8f5e9;
+  --danger:#c62828;
+  --danger-soft:#ffebee;
   --radius:14px;
   --radius-sm:10px;
 }
@@ -460,20 +460,20 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
   .btn-apercu{width:100%;margin-top:10px;margin-bottom:6px;padding:10px;border-radius:10px;border:1.5px solid #cbd5e1;background:#fff;color:#334155;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit}
 /* ═══ RÉCEPTION CONTENEUR ═══ */
 #rx-block{margin-bottom:18px}
-.rx-cont{background:#fff;border:2px solid #0e7490;border-radius:14px;padding:12px 14px;margin-bottom:12px}
+.rx-cont{background:#fff;border:2px solid var(--navy);border-radius:14px;padding:12px 14px;margin-bottom:12px}
 .rx-cont-h{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .rx-cont-t{font-weight:800;font-size:16px;color:#0f172a}.rx-cont-s{font-size:12px;color:#64748b}
-.rx-cont-n{text-align:right;font-size:13px;color:#475569}.rx-cont-n b{font-size:22px;color:#0e7490}.rx-cont-n small{display:block;font-size:11px}
-.rx-prog{height:6px;background:#e2e8f0;border-radius:6px;overflow:hidden;margin:8px 0 6px}.rx-prog span{display:block;height:100%;background:#14b8a6;transition:width .3s}
+.rx-cont-n{text-align:right;font-size:13px;color:#475569}.rx-cont-n b{font-size:22px;color:var(--navy)}.rx-cont-n small{display:block;font-size:11px}
+.rx-prog{height:6px;background:#e2e8f0;border-radius:6px;overflow:hidden;margin:8px 0 6px}.rx-prog span{display:block;height:100%;background:#1976d2;transition:width .3s}
 .rx-prog.big{height:9px;margin:8px 0}
 .rx-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #e2e8f0}
 .rx-row-l{display:flex;flex-direction:column;gap:3px;min-width:0}.rx-row-t{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rx-chip{display:inline-block;font-size:11.5px;font-weight:700;border-radius:20px;padding:2px 9px;width:max-content}
-.rx-chip.ok{background:#dcfce7;color:#166534}.rx-chip.cours{background:#fef3c7;color:#92400e}.rx-chip.att{background:#e0f2fe;color:#075985}
-.rx-btn{border:0;background:#0e7490;color:#fff;font-weight:800;font-size:14px;border-radius:10px;padding:10px 16px;min-width:110px;cursor:pointer}
-.rx-btn.alt{background:#fff;color:#0e7490;border:2px solid #0e7490}.rx-btn:disabled{opacity:.5}
+.rx-chip.ok{background:#dcfce7;color:#166534}.rx-chip.cours{background:#fef3c7;color:#92400e}.rx-chip.att{background:#e8f2fd;color:#0e2d57}
+.rx-btn{border:0;background:var(--navy);color:#fff;font-weight:800;font-size:14px;border-radius:10px;padding:10px 16px;min-width:110px;cursor:pointer}
+.rx-btn.alt{background:#fff;color:var(--navy);border:2px solid var(--navy)}.rx-btn:disabled{opacity:.5}
 #rxScreen{position:fixed;inset:0;z-index:900;background:#f1f5f9;display:none;flex-direction:column}
-.rx-top{display:flex;align-items:center;gap:10px;background:#1a2744;color:#fff;padding:10px 12px}
+.rx-top{display:flex;align-items:center;gap:10px;background:#0a1f3d;color:#fff;padding:10px 12px}
 .rx-back{border:0;background:rgba(255,255,255,.14);color:#fff;font-size:26px;line-height:1;width:44px;height:44px;border-radius:10px;cursor:pointer}
 .rx-tt{flex:1;min-width:0}.rx-t1{font-weight:800;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rx-t2{font-size:12px;opacity:.75}
 .rx-sync{font-size:12px;font-weight:700;border-radius:20px;padding:4px 10px;white-space:nowrap}.rx-sync.ok{background:#14532d;color:#bbf7d0}.rx-sync.att{background:#78350f;color:#fde68a}.rx-sync.err{background:#7f1d1d;color:#fecaca}
@@ -482,12 +482,12 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
 .rx-kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}.rx-kpi>div{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:6px}
 .rx-kpi b{font-size:20px;color:#0f172a}.rx-kpi small{display:block;font-size:11px;color:#64748b}.rx-kpi .ko b{color:#dc2626}
 .rx-fs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
-.rx-f{border:1.5px solid #cbd5e1;background:#fff;border-radius:20px;padding:7px 12px;font-size:13px;font-weight:600;white-space:nowrap;cursor:pointer}.rx-f.on{background:#1a2744;border-color:#1a2744;color:#fff}
+.rx-f{border:1.5px solid #cbd5e1;background:#fff;border-radius:20px;padding:7px 12px;font-size:13px;font-weight:600;white-space:nowrap;cursor:pointer}.rx-f.on{background:#0a1f3d;border-color:#0a1f3d;color:#fff}
 .rx-q{width:100%;margin-top:8px;border:1.5px solid #94a3b8;border-radius:10px;padding:10px 12px;font-size:15px}
 .rx-list{flex:1;overflow-y:auto;padding:10px 10px 90px;-webkit-overflow-scrolling:touch}
 .rx-vide{text-align:center;color:#64748b;padding:40px 16px;font-size:15px;line-height:1.5}
 .rx-card{background:#fff;border:1.5px solid #cbd5e1;border-left:6px solid #94a3b8;border-radius:12px;padding:10px 12px;margin-bottom:10px}
-.rx-card.e-ok{border-left-color:#16a34a;background:#f0fdf4}.rx-card.e-part{border-left-color:#f59e0b}.rx-card.e-exc,.rx-card.e-nouv{border-left-color:#ea580c;background:#fff7ed}.rx-card.e-ab{border-left-color:#dc2626;background:#fef2f2}
+.rx-card.e-ok{border-left-color:#2e7d32;background:#f0fdf4}.rx-card.e-part{border-left-color:#f59e0b}.rx-card.e-exc,.rx-card.e-nouv{border-left-color:#ea580c;background:#fff7ed}.rx-card.e-ab{border-left-color:#dc2626;background:#fef2f2}
 .rx-c-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.rx-c-des{font-weight:700;font-size:15px;line-height:1.3}
 .rx-tag{font-size:11.5px;font-weight:800;border-radius:20px;padding:2px 8px;white-space:nowrap}.rx-tag.e-ok,.rx-tag.e-ab{background:#dcfce7;color:#166534}.rx-tag.e-part{background:#fef3c7;color:#92400e}.rx-tag.e-exc,.rx-tag.e-nouv{background:#ffedd5;color:#9a3412}
 .rx-c-ref{font-size:12px;color:#64748b;font-family:ui-monospace,Consolas,monospace;margin:2px 0 8px}.rx-pend{color:#b45309}
@@ -495,18 +495,19 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
 .rx-att{font-size:11px;color:#64748b;text-align:center;min-width:58px;line-height:1.1}.rx-att b{display:block;font-size:20px;color:#0f172a}
 .rx-m,.rx-p,.rx-val{height:56px;border-radius:12px;font-weight:800;cursor:pointer;touch-action:manipulation}
 .rx-m{width:56px;border:2px solid #94a3b8;background:#fff;font-size:26px;color:#334155}.rx-m:disabled{opacity:.35}
-.rx-val{flex:1;min-width:64px;border:2px solid #1a2744;background:#fff;font-size:24px;color:#0f172a}
-.rx-p{flex:1.4;border:0;background:#0e7490;color:#fff;font-size:22px}.rx-p:active{background:#155e75}
+.rx-val{flex:1;min-width:64px;border:2px solid #0a1f3d;background:#fff;font-size:24px;color:#0f172a}
+.rx-p{flex:1.4;border:0;background:#1565c0;color:#fff;font-size:22px}.rx-p:active{background:#0e2d57}
 .rx-c-ab{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;color:#475569}
 .rx-c-ab>b{min-width:24px;text-align:center;font-size:16px}.rx-c-ab>b.ko{color:#dc2626}
 .rx-sm{height:38px;min-width:38px;border:1.5px solid #cbd5e1;background:#fff;border-radius:9px;font-size:16px;font-weight:700;cursor:pointer;padding:0 10px}.rx-sm:disabled{opacity:.35}
-.rx-sm.ko{border-color:#fca5a5;color:#dc2626}.rx-sm.ph{margin-left:auto}.rx-sm.on{background:#e0f2fe;border-color:#7dd3fc}
+.rx-sm.ko{border-color:#fca5a5;color:#dc2626}.rx-sm.ph{margin-left:auto}.rx-sm.on{background:#e8f2fd;border-color:#90caf9}
+.rx-plus{color:#c2410c!important;font-size:11px!important}
 .rx-c-obs{font-size:12.5px;color:#92400e;margin-top:6px}
 .rx-bot{position:fixed;left:0;right:0;bottom:0;display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid #cbd5e1;z-index:901}
 .rx-b1,.rx-b2{flex:1;height:52px;border-radius:12px;font-weight:800;font-size:15px;cursor:pointer}
-.rx-b1{border:0;background:#16a34a;color:#fff}.rx-b2{border:2px solid #1a2744;background:#fff;color:#1a2744}.rx-b1:disabled{opacity:.6}
+.rx-b1{border:0;background:#2e7d32;color:#fff}.rx-b2{border:2px solid #0a1f3d;background:#fff;color:#0a1f3d}.rx-b1:disabled{opacity:.6}
 .rx-valov{position:fixed;inset:0;z-index:950;background:rgba(15,23,42,.6);display:none;align-items:flex-end;justify-content:center}
-.rx-valb{background:#fff;width:100%;max-width:600px;max-height:88vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px;border-top:8px solid #16a34a}
+.rx-valb{background:#fff;width:100%;max-width:600px;max-height:88vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px;border-top:8px solid #2e7d32}
 .rx-valov.rouge .rx-valb{border-top-color:#dc2626}
 .rx-valh{font-size:19px;font-weight:800}.rx-vals{color:#475569;font-size:13.5px;margin:4px 0 10px}
 .rx-valg{border-radius:10px;padding:8px 12px;margin-bottom:8px}.rx-valg h4{margin:0 0 4px;font-size:14px}.rx-valg ul{margin:0;padding-left:18px;font-size:13.5px;line-height:1.5}.rx-valg li span{color:#64748b;font-family:ui-monospace,monospace;font-size:12px}
@@ -514,7 +515,7 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
 .rx-chk{display:flex;gap:8px;align-items:flex-start;font-size:14px;font-weight:600;margin:10px 0;padding:10px;border:2px solid #f59e0b;border-radius:10px}.rx-chk input{width:22px;height:22px;flex:none}
 .rx-valbtn{display:flex;gap:8px;margin-top:12px}
 
-.rx-val small{display:block;font-size:10.5px;font-weight:700;color:#0e7490;margin-top:-2px}
+.rx-val small{display:block;font-size:10.5px;font-weight:700;color:#1565c0;margin-top:-2px}
 .rx-val{line-height:1.05}
 #rxSheetOv{position:fixed;inset:0;z-index:960;background:rgba(15,23,42,.55);display:none;align-items:flex-end;justify-content:center}
 .rx-sheet{background:#fff;width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:14px 16px calc(16px + env(safe-area-inset-bottom));max-height:90vh;overflow:auto;animation:rxUp .16s ease-out}
@@ -524,17 +525,17 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
 .rx-sh-sub{font-size:12.5px;color:#64748b;margin:2px 0 10px;font-family:inherit}
 .rx-sh-etat{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;text-align:center}
 .rx-sh-etat>div{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:6px;font-size:11.5px;color:#64748b}.rx-sh-etat b{display:block;font-size:20px;color:#0f172a}
-.rx-sh-etat .w b{color:#b45309}.rx-sh-etat .k b{color:#c2410c}.rx-sh-etat .o b{color:#16a34a}
+.rx-sh-etat .w b{color:#b45309}.rx-sh-etat .k b{color:#c2410c}.rx-sh-etat .o b{color:#2e7d32}
 .rx-sh-lab{display:block;font-size:12.5px;font-weight:700;color:#334155;margin:8px 0 4px}
 .rx-sh-in{width:100%;border:2px solid #94a3b8;border-radius:12px;padding:12px;font-size:16px;font-family:inherit;box-sizing:border-box}
-.rx-sh-in:focus{outline:none;border-color:#0e7490;box-shadow:0 0 0 3px rgba(14,116,144,.18)}
+.rx-sh-in:focus{outline:none;border-color:#1565c0;box-shadow:0 0 0 3px rgba(21,101,192,.18)}
 .rx-sh-in.big{font-size:30px;font-weight:800;text-align:center;padding:10px}
 .rx-sh-chips{display:flex;gap:6px;margin:10px 0;overflow-x:auto}.rx-sh-chips.wrap{flex-wrap:wrap}
 .rx-sh-chips button{border:1.5px solid #cbd5e1;background:#fff;border-radius:20px;padding:9px 13px;font-size:14px;font-weight:700;white-space:nowrap;flex:none}
-.rx-sh-chips button.on{background:#e0f2fe;border-color:#0e7490}
+.rx-sh-chips button.on{background:#e8f2fd;border-color:#1565c0}
 .rx-sh-prev{min-height:20px;font-size:14px;color:#0f172a;text-align:center;margin:4px 0 8px}
-.rx-sh-ok{width:100%;height:54px;border:0;border-radius:12px;background:#0e7490;color:#fff;font-size:16px;font-weight:800;margin-top:4px}
-.rx-sh-row{display:flex;gap:8px;margin-top:8px}.rx-sh-2{flex:1;height:46px;border:2px solid #1a2744;background:#fff;color:#1a2744;border-radius:12px;font-size:14px;font-weight:700}
+.rx-sh-ok{width:100%;height:54px;border:0;border-radius:12px;background:#1565c0;color:#fff;font-size:16px;font-weight:800;margin-top:4px}
+.rx-sh-row{display:flex;gap:8px;margin-top:8px}.rx-sh-2{flex:1;height:46px;border:2px solid #0a1f3d;background:#fff;color:#0a1f3d;border-radius:12px;font-size:14px;font-weight:700}
 .rx-sh-2.ko{border-color:#dc2626;color:#dc2626}
 </style>
 </head>
@@ -635,8 +636,8 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
         </div>
       </div>
 
-      <div class="card" id="cardPrepLibre" style="display:none;margin-bottom:16px;background:#f3f0ff;border:1.5px solid #7c3aed">
-        <div style="font-weight:700;font-size:14px;color:#7c3aed">📦 Préparation demandée par un vendeur ou Fabrice ?</div>
+      <div class="card" id="cardPrepLibre" style="display:none;margin-bottom:16px;background:#f3f0ff;border:1.5px solid #5b5bd6">
+        <div style="font-weight:700;font-size:14px;color:#5b5bd6">📦 Préparation demandée par un vendeur ou Fabrice ?</div>
         <div style="font-size:12.5px;color:#6b5b95;margin-top:2px;margin-bottom:10px">Pas de BL, pas de client officiel pour l'instant — scanne ce que tu prépares, le vendeur l'affectera ensuite.</div>
         <div class="field" style="margin-bottom:10px">
           <label style="font-size:12.5px">Demandé par (vendeur) <span class="req">*</span></label>
@@ -660,7 +661,7 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
           <input type="text" id="inputContactPrepLibre" placeholder="Personne qui a demandé : chef de chantier, acheteur..." autocomplete="off">
         </div>
         <div id="prepLibreError" style="display:none;background:#fff;border:1px solid #b91c1c;color:#b91c1c;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:10px"></div>
-        <button type="button" id="btnStartPrepLibre" style="width:100%;background:#7c3aed;color:white;border:none;border-radius:8px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer">📦 Démarrer une préparation</button>
+        <button type="button" id="btnStartPrepLibre" style="width:100%;background:#5b5bd6;color:white;border:none;border-radius:8px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer">📦 Démarrer une préparation</button>
       </div>
 
       <!-- Livraison hors procédure : BL/FC papier remis au client mais jamais saisi au bureau -->
@@ -1573,8 +1574,8 @@ function _renderSessionsBase() {
   if (pretes.length && !elPretes) {
     const block = document.createElement('div');
     block.id = 'pretes-block';
-    block.style.cssText = 'background:#f0fdf4;border:2px solid #16a34a;border-radius:12px;padding:14px;margin-bottom:18px';
-    block.innerHTML = '<div style="font-weight:800;font-size:14px;color:#16a34a;margin-bottom:10px">✅ Prêtes à livrer — ' + pretes.length + ' commande' + (pretes.length > 1 ? 's' : '') + '</div>'
+    block.style.cssText = 'background:#f0fdf4;border:2px solid #2e7d32;border-radius:12px;padding:14px;margin-bottom:18px';
+    block.innerHTML = '<div style="font-weight:800;font-size:14px;color:#2e7d32;margin-bottom:10px">✅ Prêtes à livrer — ' + pretes.length + ' commande' + (pretes.length > 1 ? 's' : '') + '</div>'
       + pretes.map(s => {
         const vendeur = choiceValue(s.Vendeur_Emetteur);
         const complet = Number(s.Nb_Ecarts || 0) === 0 && Number(s.Nb_Articles_Scannes || 0) > 0;
@@ -1584,8 +1585,8 @@ function _renderSessionsBase() {
           + '<div style="font-size:12px;color:#6b7280;margin-top:2px">' + (s.Client || '') + ' · ' + vendeur + '</div>'
           + '</div>'
           + '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">'
-          + (complet ? '<button onclick="prendreEnChargeEtLivrer(' + s.ID + ',\'' + s.Numero_BL + '\')" style="background:#fff;color:#16a34a;border:2px solid #16a34a;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer">🚚 Prendre en charge et livrer</button>' : '')
-          + '<button onclick="verifierLivraisonPrete(' + s.ID + ')" style="background:#16a34a;color:white;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;cursor:pointer">📦 Vérifier & terminer</button>'
+          + (complet ? '<button onclick="prendreEnChargeEtLivrer(' + s.ID + ',\'' + s.Numero_BL + '\')" style="background:#fff;color:#2e7d32;border:2px solid #2e7d32;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer">🚚 Prendre en charge et livrer</button>' : '')
+          + '<button onclick="verifierLivraisonPrete(' + s.ID + ')" style="background:#2e7d32;color:white;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;cursor:pointer">📦 Vérifier & terminer</button>'
           + '</div>'
           + '</div>';
       }).join('');
@@ -1593,7 +1594,7 @@ function _renderSessionsBase() {
   } else if (!pretes.length && elPretes) {
     elPretes.remove();
   } else if (pretes.length && elPretes) {
-    elPretes.innerHTML = '<div style="font-weight:800;font-size:14px;color:#16a34a;margin-bottom:10px">✅ Prêtes à livrer — ' + pretes.length + ' commande' + (pretes.length > 1 ? 's' : '') + '</div>'
+    elPretes.innerHTML = '<div style="font-weight:800;font-size:14px;color:#2e7d32;margin-bottom:10px">✅ Prêtes à livrer — ' + pretes.length + ' commande' + (pretes.length > 1 ? 's' : '') + '</div>'
       + pretes.map(s => {
         const vendeur = choiceValue(s.Vendeur_Emetteur);
         const complet = Number(s.Nb_Ecarts || 0) === 0 && Number(s.Nb_Articles_Scannes || 0) > 0;
@@ -1601,8 +1602,8 @@ function _renderSessionsBase() {
           + '<div><div style="font-weight:700;font-size:14px">' + docIcon(s.Numero_BL) + ' ' + s.Numero_BL + '</div>'
           + '<div style="font-size:12px;color:#6b7280;margin-top:2px">' + (s.Client || '') + ' · ' + vendeur + '</div></div>'
           + '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">'
-          + (complet ? '<button onclick="prendreEnChargeEtLivrer(' + s.ID + ',\'' + s.Numero_BL + '\')" style="background:#fff;color:#16a34a;border:2px solid #16a34a;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer">🚚 Prendre en charge et livrer</button>' : '')
-          + '<button onclick="verifierLivraisonPrete(' + s.ID + ')" style="background:#16a34a;color:white;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;cursor:pointer">📦 Vérifier & terminer</button>'
+          + (complet ? '<button onclick="prendreEnChargeEtLivrer(' + s.ID + ',\'' + s.Numero_BL + '\')" style="background:#fff;color:#2e7d32;border:2px solid #2e7d32;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer">🚚 Prendre en charge et livrer</button>' : '')
+          + '<button onclick="verifierLivraisonPrete(' + s.ID + ')" style="background:#2e7d32;color:white;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;cursor:pointer">📦 Vérifier & terminer</button>'
           + '</div>'
           + '</div>';
       }).join('');
@@ -2004,10 +2005,10 @@ function renderScanPicker(list){
     const mag = choiceValue(s.Magasinier);
     const estAMoi = mag === selectedMagasinier;
     const magBadge = mag
-      ? ('<span class="badge" style="background:' + (estAMoi ? '#e0e7ff;color:#3730a3' : '#fef3c7;color:#92400e') + '">' + (estAMoi ? 'Toi' : mag) + '</span>')
+      ? ('<span class="badge" style="background:' + (estAMoi ? '#e8f2fd;color:#0e2d57' : '#fef3c7;color:#92400e') + '">' + (estAMoi ? 'Toi' : mag) + '</span>')
       : '';
     const rs = raisonEnCours(s);
-    const couleurs = { ok: ['#eef2ff', '#3730a3', '#c7d2fe'], orange: ['#fff7ed', '#c2410c', '#fdba74'], rouge: ['#fef2f2', '#b91c1c', '#fca5a5'] }[rs.niveau];
+    const couleurs = { ok: ['#f0f7ff', '#0e2d57', '#bbdefb'], orange: ['#fff7ed', '#c2410c', '#fdba74'], rouge: ['#fef2f2', '#b91c1c', '#fca5a5'] }[rs.niveau];
     const av = avancementSession(s.ID);
     const avTxt = !av ? '' : (av.total === 0 ? 'Rien scanné pour l\'instant'
       : av.scannees + '/' + av.total + ' référence' + (av.total > 1 ? 's' : '') + ' scannée' + (av.scannees > 1 ? 's' : '') + ' · ' + av.unites + ' unité' + (av.unites > 1 ? 's' : ''));
@@ -3035,7 +3036,7 @@ function prendreEnChargeEtLivrer(id, numero){
 //   🔴 ROUGE  plus d'articles que le BL, ou action définitive avec écart
 //   ⚪ GRIS   aucun article scanné
 var ALERTE_COULEURS = {
-  vert:   { fg: '#15803d', bg: '#f0fdf4', bd: '#16a34a', ico: '🟢' },
+  vert:   { fg: '#2e7d32', bg: '#f0fdf4', bd: '#2e7d32', ico: '🟢' },
   orange: { fg: '#c2410c', bg: '#fff7ed', bd: '#ea580c', ico: '🟠' },
   rouge:  { fg: '#b91c1c', bg: '#fef2f2', bd: '#dc2626', ico: '🔴' },
   gris:   { fg: '#334155', bg: '#f1f5f9', bd: '#64748b', ico: '⚪' }
@@ -3309,17 +3310,17 @@ updateConnBanner();
     <h3 style="margin:0 0 4px;font-size:17px">✍️ Signature</h3>
     <p style="font-size:13px;color:#6b7280;margin:0 0 14px" id="sigBlLabel"></p>
     <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Nom du signataire *</label>
-    <input type="text" id="sigNom" placeholder="Nom de la personne qui prend en charge" style="width:100%;padding:10px 12px;border:1.5px solid #e3e5ee;border-radius:8px;font-size:14px;margin-bottom:14px;font-family:inherit;box-sizing:border-box">
+    <input type="text" id="sigNom" placeholder="Nom de la personne qui prend en charge" style="width:100%;padding:10px 12px;border:1.5px solid #dde3ee;border-radius:8px;font-size:14px;margin-bottom:14px;font-family:inherit;box-sizing:border-box">
     <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Signature *</label>
     <div style="border:2px dashed #c7c9d6;border-radius:10px;overflow:hidden;touch-action:none;background:#fafafa">
       <canvas id="sigCanvas" style="width:100%;height:180px;display:block"></canvas>
     </div>
     <p id="sigMsg" style="font-size:12.5px;color:#dc2626;margin:8px 0 0;display:none"></p>
     <div style="display:flex;gap:10px;margin-top:14px">
-      <button id="sigClear" type="button" style="flex:1;padding:12px;border-radius:8px;border:1.5px solid #e3e5ee;background:#fff;font-weight:600;cursor:pointer;font-family:inherit;font-size:13.5px">Effacer</button>
-      <button id="sigCancel" type="button" style="flex:1;padding:12px;border-radius:8px;border:1.5px solid #e3e5ee;background:#fff;font-weight:600;cursor:pointer;font-family:inherit;font-size:13.5px;color:#dc2626">Annuler la clôture</button>
+      <button id="sigClear" type="button" style="flex:1;padding:12px;border-radius:8px;border:1.5px solid #dde3ee;background:#fff;font-weight:600;cursor:pointer;font-family:inherit;font-size:13.5px">Effacer</button>
+      <button id="sigCancel" type="button" style="flex:1;padding:12px;border-radius:8px;border:1.5px solid #dde3ee;background:#fff;font-weight:600;cursor:pointer;font-family:inherit;font-size:13.5px;color:#dc2626">Annuler la clôture</button>
     </div>
-    <button id="sigValidate" type="button" style="width:100%;margin-top:10px;padding:14px;border:none;border-radius:8px;background:#6c63ff;color:#fff;font-weight:700;font-size:15px;cursor:pointer;font-family:inherit">Valider la signature</button>
+    <button id="sigValidate" type="button" style="width:100%;margin-top:10px;padding:14px;border:none;border-radius:8px;background:#1565c0;color:#fff;font-weight:700;font-size:15px;cursor:pointer;font-family:inherit">Valider la signature</button>
   </div>
 </div>
 
@@ -3344,7 +3345,7 @@ function sigResizeCanvas(){
   sigCtx.lineWidth = 2.5;
   sigCtx.lineCap = 'round';
   sigCtx.lineJoin = 'round';
-  sigCtx.strokeStyle = '#1a2744';
+  sigCtx.strokeStyle = '#0a1f3d';
 }
 function sigPos(e){
   const rect = elSigCanvas.getBoundingClientRect();
@@ -3560,7 +3561,10 @@ function rxStats(){
   const L = RXS.lines, P = L.filter(l => l.att > 0);
   return {
     refs: P.length, refsOk: P.filter(l => l.rec >= l.att).length,
-    uAtt: P.reduce((s, l) => s + l.att, 0), uRec: L.reduce((s, l) => s + l.rec, 0), uAb: L.reduce((s, l) => s + l.ab, 0),
+    // unités des BC (plafonnées à l'attendu) : un article non prévu ou en trop ne doit pas masquer un manquant
+    uAtt: P.reduce((s, l) => s + l.att, 0), uRecBC: P.reduce((s, l) => s + Math.min(l.rec, l.att), 0),
+    uPlus: L.reduce((s, l) => s + Math.max(0, l.rec - l.att), 0),
+    uRec: L.reduce((s, l) => s + l.rec, 0), uAb: L.reduce((s, l) => s + l.ab, 0),
     reste: P.filter(l => l.rec < l.att).length, ecarts: L.filter(l => l.rec !== l.att || l.ab > 0).length,
     abimes: L.filter(l => l.ab > 0).length, attente: L.filter(l => l.sync !== 'ok').length, nouv: L.filter(l => l.att === 0).length
   };
@@ -3581,10 +3585,10 @@ function rxRender(){
 function rxRenderHead(){
   const h = document.getElementById('rxHead'); if (!h) return;
   const st = rxStats();
-  const pct = st.uAtt ? Math.min(100, Math.round(st.uRec / st.uAtt * 100)) : 0;
+  const pct = st.uAtt ? Math.min(100, Math.round(st.uRecBC / st.uAtt * 100)) : 0;
   const f = RXS.filtre;
   const chip = (k, lab, n) => '<button class="rx-f ' + (f === k ? 'on' : '') + '" data-rxf="' + k + '">' + lab + (n != null ? ' <b>' + n + '</b>' : '') + '</button>';
-  h.innerHTML = '<div class="rx-kpi"><div><b>' + st.refsOk + '</b>/' + st.refs + '<small>articles complets</small></div><div><b>' + rxFmt(st.uRec) + '</b>/' + rxFmt(st.uAtt) + '<small>unités</small></div><div class="' + (st.uAb ? 'ko' : '') + '"><b>' + rxFmt(st.uAb) + '</b><small>abîmé' + (st.uAb > 1 ? 's' : '') + '</small></div></div>'
+  h.innerHTML = '<div class="rx-kpi"><div><b>' + st.refsOk + '</b>/' + st.refs + '<small>articles complets</small></div><div><b>' + rxFmt(st.uRecBC) + '</b>/' + rxFmt(st.uAtt) + '<small>unités' + (st.uPlus ? ' · <b class="rx-plus">+' + rxFmt(st.uPlus) + '</b> en trop' : '') + '</small></div><div class="' + (st.uAb ? 'ko' : '') + '"><b>' + rxFmt(st.uAb) + '</b><small>abîmé' + (st.uAb > 1 ? 's' : '') + '</small></div></div>'
     + '<div class="rx-prog big"><span style="width:' + pct + '%"></span></div>'
     + '<div class="rx-fs">' + chip('reste', 'À trouver', st.reste) + chip('tout', 'Tout', RXS.lines.length) + chip('ecarts', 'Écarts', st.ecarts) + chip('abimes', 'Abîmés', st.abimes) + '</div>'
     + '<input id="rxQ" class="rx-q" type="search" placeholder="🔎 Chercher une réf. ou un mot (ex. coude 100)" value="' + rxEsc(RXS.q) + '">';
@@ -3789,7 +3793,7 @@ function rxValider(){
   if (!ov) { ov = document.createElement('div'); ov.id = 'rxValOv'; document.body.appendChild(ov); }
   ov.className = 'rx-valov ' + coul;
   ov.innerHTML = '<div class="rx-valb"><div class="rx-valh">' + (coul === 'vert' ? '🟢 Tout est conforme' : '🔴 Contrôle avec écarts') + '</div>'
-    + '<div class="rx-vals">' + rxFmt(st.uRec) + ' unités comptées sur ' + rxFmt(st.uAtt) + ' attendues</div>'
+    + '<div class="rx-vals">' + rxFmt(st.uRecBC) + ' unités trouvées sur ' + rxFmt(st.uAtt) + ' attendues' + (st.uPlus ? ' · <b>+ ' + rxFmt(st.uPlus) + ' en trop ou non prévue' + (st.uPlus > 1 ? 's' : '') + '</b>' : '') + '</div>'
     + (manq.length ? '<div class="rx-valg man"><h4>Manquants (' + manq.length + ')</h4><ul>' + li(manq, l => 'trouvé ' + rxFmt(l.rec) + ' / ' + rxFmt(l.att)) + '</ul></div>' : '')
     + (exc.length ? '<div class="rx-valg exc"><h4>En trop / non prévus (' + exc.length + ')</h4><ul>' + li(exc, l => l.att ? '+' + rxFmt(l.rec - l.att) : rxFmt(l.rec) + ' non prévu') + '</ul></div>' : '')
     + (ab.length ? '<div class="rx-valg ab"><h4>Abîmés (' + ab.length + ')</h4><ul>' + li(ab, l => rxFmt(l.ab) + ' abîmé' + (l.ph ? ' · 📷 ' + l.ph : ' · <b>sans photo</b>')) + '</ul></div>' : '')
@@ -3812,7 +3816,7 @@ function rxValiderEnvoi(ov, r){
   const nEc = r.manq.length + r.exc.length + r.ab.filter(l => !r.manq.includes(l) && !r.exc.includes(l)).length;
   const qui = choiceValue(s.Magasinier) || selectedMagasinier;
   const resume = '<p>Contrôle du conteneur <b>' + rxEsc(s.Conteneur || '') + '</b> — fournisseur <b>' + rxEsc(s.Fournisseur || '') + '</b> validé par <b>' + rxEsc(selectedMagasinier) + '</b>.</p>'
-    + '<p>' + rxFmt(r.st.uRec) + ' unités comptées sur ' + rxFmt(r.st.uAtt) + ' attendues · ' + (nEc ? '<b style="color:#b91c1c">' + nEc + ' écart(s)</b>' : '<b style="color:#15803d">aucun écart</b>') + '</p>'
+    + '<p>' + rxFmt(r.st.uRecBC) + ' unités trouvées sur ' + rxFmt(r.st.uAtt) + ' attendues' + (r.st.uPlus ? ' + ' + rxFmt(r.st.uPlus) + ' en trop ou non prévue(s)' : '') + ' · ' + (nEc ? '<b style="color:#b91c1c">' + nEc + ' écart(s)</b>' : '<b style="color:#2e7d32">aucun écart</b>') + '</p>'
     + (nEc ? '<table style="border-collapse:collapse;font-size:13px"><tr><th style="padding:4px 8px;border:1px solid #ddd;background:#f1f5f9">Réf.</th><th style="padding:4px 8px;border:1px solid #ddd;background:#f1f5f9">Désignation</th><th style="padding:4px 8px;border:1px solid #ddd;background:#f1f5f9">Écart</th></tr>'
       + tr(r.manq, l => 'manque ' + rxFmt(l.att - l.rec) + ' (trouvé ' + rxFmt(l.rec) + '/' + rxFmt(l.att) + ')') + tr(r.exc, l => l.att ? '+' + rxFmt(l.rec - l.att) + ' en trop' : rxFmt(l.rec) + ' non prévu') + tr(r.ab, l => rxFmt(l.ab) + ' abîmé(s)' + (l.ph ? ' — photo' : '') + (l.obs ? ' — ' + rxEsc(l.obs) : '')) + '</table>' : '')
     + '<p><a href="' + RX_ACHATS + '?dossier=' + encodeURIComponent(s.ID_Arrivage || '') + '">Ouvrir le dossier dans le Portail Achats</a></p>';
