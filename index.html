@@ -636,8 +636,8 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
         </div>
       </div>
 
-      <div class="card" id="cardPrepLibre" style="display:none;margin-bottom:16px;background:#f3f0ff;border:1.5px solid #5b5bd6">
-        <div style="font-weight:700;font-size:14px;color:#5b5bd6">📦 Préparation demandée par un vendeur ou Fabrice ?</div>
+      <div class="card" id="cardPrepLibre" style="display:none;margin-bottom:16px;background:#f0f7ff;border:1.5px solid #1976d2">
+        <div style="font-weight:700;font-size:14px;color:#0e2d57">📦 Préparation demandée par un vendeur ou Fabrice ?</div>
         <div style="font-size:12.5px;color:#6b5b95;margin-top:2px;margin-bottom:10px">Pas de BL, pas de client officiel pour l'instant — scanne ce que tu prépares, le vendeur l'affectera ensuite.</div>
         <div class="field" style="margin-bottom:10px">
           <label style="font-size:12.5px">Demandé par (vendeur) <span class="req">*</span></label>
@@ -661,7 +661,7 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
           <input type="text" id="inputContactPrepLibre" placeholder="Personne qui a demandé : chef de chantier, acheteur..." autocomplete="off">
         </div>
         <div id="prepLibreError" style="display:none;background:#fff;border:1px solid #b91c1c;color:#b91c1c;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:10px"></div>
-        <button type="button" id="btnStartPrepLibre" style="width:100%;background:#5b5bd6;color:white;border:none;border-radius:8px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer">📦 Démarrer une préparation</button>
+        <button type="button" id="btnStartPrepLibre" style="width:100%;background:#0e2d57;color:white;border:none;border-radius:8px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer">📦 Démarrer une préparation</button>
       </div>
 
       <!-- Livraison hors procédure : BL/FC papier remis au client mais jamais saisi au bureau -->
@@ -2067,7 +2067,7 @@ function startSession(sess){
   if (!elSansBL) {
     elSansBL = document.createElement('div');
     elSansBL.id = 'scanSansBLInfo';
-    elSansBL.style.cssText = 'background:#f5f3ff;border:1px solid #c4b5fd;color:#4c1d95;border-radius:8px;padding:9px 12px;font-size:13px;margin:8px 0;line-height:1.45';
+    elSansBL.style.cssText = 'background:#f0f7ff;border:1px solid #90caf9;color:#0e2d57;border-radius:8px;padding:9px 12px;font-size:13px;margin:8px 0;line-height:1.45';
     elBtnCommandePrete.parentNode.insertBefore(elSansBL, elBtnCommandePrete);
   }
   elSansBL.style.display = sansBL ? 'block' : 'none';
@@ -3043,6 +3043,22 @@ var ALERTE_COULEURS = {
 };
 function fermerAlerteCloture(){ const ov = document.getElementById('alerteCloture'); if (ov) ov.remove(); }
 // boutons : [{ label, couleur: 'orange'|'rouge'|'vert'|'neutre', plein: bool, action: fn }]
+// 2e étape obligatoire pour solder un BL incomplet : case à cocher + nom du vendeur prévenu
+function clotureDefinitive(manque, cloturer){
+  const nb = manque.reduce((a, l) => a + Math.max(0, (Number(l.attendue) || 0) - (Number(l.scannee) || 0)), 0);
+  alerteCloture('rouge', 'Clôture définitive avec écart', 'Le reste à livrer (' + manque.length + ' article(s), ' + nb + ' unité(s)) sera perdu : le client ne pourra plus le récupérer sur ce BL.',
+    '<div style="font-size:14px;color:#334155;margin-bottom:8px">À faire seulement si le <b>vendeur est d\'accord</b> (client qui refuse le reste, erreur sur le BL…).</div>'
+    + '<label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;font-weight:700;color:#7f1d1d;background:#fff;border:2px solid #fca5a5;border-radius:10px;padding:10px;cursor:pointer"><input type="checkbox" id="cdOk" style="width:22px;height:22px;flex:none;margin:0"> Le vendeur est prévenu : je solde ce BL sans le reste à livrer.</label>',
+    [ { label: '↩ Non, retour', couleur: 'gris', plein: true, action: null },
+      { label: '🔴 Clôturer définitivement', couleur: 'rouge', action: () => {} } ]);
+  // le bouton rouge ne fonctionne que si la case est cochée
+  const ov = document.getElementById('alerteCloture'); if (!ov) return;
+  const bt = ov.querySelectorAll('button[data-i]')[1];
+  const ck = ov.querySelector('#cdOk');
+  const maj = () => { bt.disabled = !ck.checked; bt.style.opacity = ck.checked ? '1' : '.45'; };
+  ck.addEventListener('change', maj); maj();
+  bt.addEventListener('click', e => { if (!ck.checked) { e.stopImmediatePropagation(); showToast('Coche d\'abord la case'); return; } cloturer(); }, true);
+}
 function alerteCloture(niveau, titre, sousTitre, corpsHTML, boutons){
   fermerAlerteCloture();
   const c = ALERTE_COULEURS[niveau] || ALERTE_COULEURS.gris;
@@ -3120,19 +3136,22 @@ function demanderCloture(){
   const manqueEnStock = manque.filter(l => (stockImage(l.reference) || 0) > 0);
   if (manqueEnStock.length) corps += '<div style="font-size:13.5px;font-weight:800;color:#9a3412;background:#ffedd5;border:2px solid #fb923c;border-radius:10px;padding:8px 10px;margin:6px 0">📦 Image indique encore du stock pour ' + manqueEnStock.length + ' article(s) manquant(s) : ' + manqueEnStock.map(l => escAttr(l.reference)).join(', ') + '.<br>Vérifie en rayon avant de créer un reste à livrer.</div>';
   if (surplus.length) corps += '<div style="font-weight:800;color:#b91c1c;margin:10px 0 6px">🔴 En trop par rapport au BL</div>' + _tableEcarts(surplus, '#b91c1c', 'surplus');
+  // Garde-fou (retour terrain) : s'il manque des articles, « Clôturer » ne peut plus solder le BL en un clic.
+  // Chemin normal = « Clôturer reste à livrer » ; la clôture définitive passe par une 2e confirmation explicite.
+  const definitif = () => clotureDefinitive(manque, cloturer);
   if (manque.length && !surplus.length){
     const btns = [];
-    if (partielleDispo) btns.push({ label: '🟠 OUI, le client revient<br><span style="font-weight:600;font-size:13px">Créer le reste à livrer (nouveau BL)</span>', couleur: 'orange', plein: true, action: resteALivrer });
-    btns.push({ label: '✏️ NON, il a tout pris<br><span style="font-weight:600;font-size:13px">Je corrige les quantités</span>', couleur: 'orange', action: corriger(manque) });
-    btns.push({ label: '🔴 NON, il ne reviendra pas<br><span style="font-weight:600;font-size:13px">Clôturer avec écart (définitif)</span>', couleur: 'rouge', action: cloturer });
+    if (partielleDispo) btns.push({ label: '🟠 Clôturer reste à livrer<br><span style="font-weight:600;font-size:13px">Le client revient chercher le reste (nouveau BL)</span>', couleur: 'orange', plein: true, action: resteALivrer });
+    btns.push({ label: '✏️ Il a tout pris<br><span style="font-weight:600;font-size:13px">Je corrige les quantités</span>', couleur: 'orange', action: corriger(manque) });
     btns.push(annuler);
-    alerteCloture('orange', 'Tout n\'est pas livré', 'Le client reviendra-t-il chercher le reste ?', corps, btns);
+    btns.push({ label: '<span style="font-weight:600;font-size:12.5px">Le client ne reviendra pas ? Clôture définitive…</span>', couleur: 'neutre', action: definitif });
+    alerteCloture('orange', 'Tout n\'est pas livré', manque.length + ' article(s) sans la quantité du BL : utilise « Clôturer reste à livrer ».', corps, btns);
     return;
   }
   const btns = [{ label: '✏️ Je corrige les quantités', couleur: 'rouge', plein: true, action: corriger(surplus.concat(manque)) }];
   if (manque.length && partielleDispo) btns.push({ label: '🟠 Le client revient pour le manquant<br><span style="font-weight:600;font-size:13px">Créer le reste à livrer</span>', couleur: 'orange', action: resteALivrer });
-  btns.push({ label: '🔴 Clôturer quand même<br><span style="font-weight:600;font-size:13px">Le vendeur régularisera (définitif)</span>', couleur: 'rouge', action: cloturer });
-  btns.push(annuler);
+  if (manque.length) btns.push(annuler, { label: '<span style="font-weight:600;font-size:12.5px">Clôturer quand même… (définitif)</span>', couleur: 'neutre', action: definitif });
+  else { btns.push({ label: '🔴 Clôturer quand même<br><span style="font-weight:600;font-size:13px">Le vendeur régularisera (définitif)</span>', couleur: 'rouge', action: cloturer }); btns.push(annuler); }
   alerteCloture('rouge', 'Quantités différentes du BL', 'Vérifie avant de clôturer : le vendeur devra régulariser.', corps, btns);
 }
 
