@@ -537,6 +537,16 @@ button.secondary:hover{border-color:var(--violet);color:var(--violet-dark);}
 .rx-sh-ok{width:100%;height:54px;border:0;border-radius:12px;background:#1565c0;color:#fff;font-size:16px;font-weight:800;margin-top:4px}
 .rx-sh-row{display:flex;gap:8px;margin-top:8px}.rx-sh-2{flex:1;height:46px;border:2px solid #0a1f3d;background:#fff;color:#0a1f3d;border-radius:12px;font-size:14px;font-weight:700}
 .rx-sh-2.ko{border-color:#dc2626;color:#dc2626}
+
+.rx-row-b{display:flex;gap:6px;align-items:center;flex:none}
+.rx-voir{width:46px;height:44px;border:1.5px solid #cbd5e1;background:#fff;border-radius:10px;font-size:18px;cursor:pointer;flex:none}
+#rxApercuOv{position:fixed;inset:0;z-index:960;background:rgba(15,23,42,.55);display:none;align-items:flex-end;justify-content:center}
+table.rx-apx{width:100%;border-collapse:collapse;font-size:14px;margin-top:4px}
+.rx-apx th{font-size:11px;text-transform:uppercase;color:#64748b;text-align:left;padding:6px 4px;border-bottom:1px solid #e2e8f0}
+.rx-apx td{padding:8px 4px;border-top:1px solid #eef1f6;vertical-align:top}.rx-apx .r{text-align:right;white-space:nowrap}
+.rx-apx tr.ok td{background:#f0fdf4}.rx-apx tr.man td{background:#fffbeb}.rx-apx tr.exc td{background:#fff7ed}
+.rx-apx-r{font-size:12px;color:#64748b;font-family:ui-monospace,Consolas,monospace}.rx-apx-ab{font-size:11px;color:#c62828;font-weight:700}
+.rx-gr{color:#0e2d57;font-family:inherit}
 </style>
 </head>
 <body>
@@ -3486,11 +3496,13 @@ function rxRenderBloc(){
         if (st === 'Contrôlée') etat = '<span class="rx-chip ok">✓ ' + rxEsc(choiceValue(s.Repris_Par) || mag || 'contrôlée') + '</span>';
         else if (st === 'En cours de scan') { etat = '<span class="rx-chip cours">🔄 ' + rxEsc(moi ? 'Toi' : (mag || 'en cours')) + '</span>'; btn = '<button class="rx-btn ' + (moi ? '' : 'alt') + '" data-rxopen="' + s.ID + '">' + (moi ? 'Continuer' : 'Reprendre') + '</button>'; }
         else { etat = '<span class="rx-chip att">à prendre</span>'; btn = '<button class="rx-btn" data-rxprendre="' + s.ID + '" ' + (selectedMagasinier ? '' : 'disabled') + '>' + (selectedMagasinier ? 'Prendre' : 'Ton nom ↑') + '</button>'; }
-        return '<div class="rx-row"><div class="rx-row-l"><div class="rx-row-t">' + rxEsc(s.Fournisseur || s.Numero_BL) + '</div>' + etat + '</div>' + btn + '</div>';
+        const voir = '<button class="rx-voir" data-rxvoir="' + s.ID + '" title="Voir le contenu sans prendre la fiche">👁</button>';
+        return '<div class="rx-row"><div class="rx-row-l"><div class="rx-row-t">' + rxEsc(s.Fournisseur || s.Numero_BL) + '</div>' + etat + '</div><div class="rx-row-b">' + voir + btn + '</div></div>';
       }).join('') + '</div>';
   }).join('');
 }
 function rxBlocClick(e){
+  const v = e.target.closest('[data-rxvoir]'); if (v) return rxApercu(+v.dataset.rxvoir);
   const p = e.target.closest('[data-rxprendre]'), o = e.target.closest('[data-rxopen]');
   if (p) return rxPrendre(+p.dataset.rxprendre, p);
   if (o) {
@@ -3499,6 +3511,37 @@ function rxBlocClick(e){
     if (mag && mag !== selectedMagasinier && !confirm(mag + ' a commencé cette fiche.\n\nReprends-la seulement s\'il a arrêté : si vous comptez à deux sur la même fiche, des quantités seront perdues.\n\nReprendre ?')) return;
     rxOuvrir(s);
   }
+}
+// ── Aperçu d'une fiche de réception sans la prendre en charge (comme « Voir le contenu » des BL) ──
+function rxApercu(id){
+  const s = (sessionsCache || []).find(x => x.ID === id); if (!s) return;
+  let ov = document.getElementById('rxApercuOv');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'rxApercuOv'; document.body.appendChild(ov);
+    ov.addEventListener('click', e => { if (e.target === ov || e.target.closest('[data-apx]')) ov.style.display = 'none'; }); }
+  const st = choiceValue(s.Statut), mag = choiceValue(s.Repris_Par) || choiceValue(s.Magasinier);
+  const tete = '<div class="rx-sh-h"><div><div class="rx-sh-t">' + rxEsc(s.Fournisseur || s.Numero_BL) + '</div><div class="rx-sh-sub">🚢 ' + rxEsc(s.Conteneur || '')
+    + (st === 'Contrôlée' ? ' · ✓ contrôlée' + (mag ? ' par ' + rxEsc(mag) : '') : st === 'En cours de scan' ? ' · 🔄 ' + rxEsc(mag || 'en cours') : ' · à prendre') + '</div></div><button class="rx-sh-x" data-apx="1">✕</button></div>';
+  ov.innerHTML = '<div class="rx-sheet">' + tete + '<div class="rx-vide" style="padding:20px">Chargement des articles…</div></div>';
+  ov.style.display = 'flex';
+  fetch(CONFIG.FLOWS.LISTE_LIGNES).then(r => r.json()).then(data => {
+    const all = Array.isArray(data) ? data : (data.value || []);
+    const L = all.filter(l => String(lineSessionId(l)) === String(id));
+    const compte = L.some(l => rxNum(l.Quantite_Scannee) || rxNum(l.Quantite_Abimee));
+    const nAtt = L.filter(l => rxNum(l.Quantite_Attendue) > 0).length, uAtt = L.reduce((a, l) => a + rxNum(l.Quantite_Attendue), 0);
+    const corps = L.length
+      ? '<div class="rx-sh-sub">' + nAtt + ' article(s) attendu(s) · ' + rxFmt(uAtt) + ' unité(s)</div><table class="rx-apx"><thead><tr><th>Article</th><th class="r">Attendu</th>' + (compte ? '<th class="r">Compté</th>' : '') + '</tr></thead><tbody>'
+        + L.map(l => { const att = rxNum(l.Quantite_Attendue), rec = rxNum(l.Quantite_Scannee), ab = rxNum(l.Quantite_Abimee), gr = String(l.N_Commande || '') === 'GRATUIT';
+            const cls = !compte ? '' : rec === att && !ab ? 'ok' : rec < att ? 'man' : 'exc';
+            return '<tr class="' + cls + '"><td><b>' + rxEsc(l.Designation || l.Reference_Article) + '</b>' + (gr ? ' <span class="rx-tag e-nouv">🎁 gratuit</span>' : att === 0 ? ' <span class="rx-tag e-nouv">non prévu</span>' : '')
+              + '<div class="rx-apx-r">' + rxEsc(l.Reference_Article || '') + (l.N_Commande && !gr ? ' · BC ' + rxEsc(l.N_Commande) : '') + '</div></td><td class="r"><b>' + rxFmt(att) + '</b></td>'
+              + (compte ? '<td class="r">' + rxFmt(rec) + (ab ? '<div class="rx-apx-ab">' + rxFmt(ab) + ' abîmé</div>' : '') + '</td>' : '') + '</tr>'; }).join('')
+        + '</tbody></table>'
+      : '<div class="rx-vide">Aucun article sur cette fiche.</div>';
+    const pied = '<div class="rx-sh-sub" style="margin-top:10px">Aperçu seulement : la fiche reste ' + (st === 'BL Émis' ? '« à prendre »' : 'telle quelle') + '.</div>'
+      + (st === 'BL Émis' && selectedMagasinier ? '<button class="rx-sh-ok" id="rxApxPrendre">Prendre cette fiche</button>' : '');
+    ov.firstChild.innerHTML = tete + corps + pied;
+    const b = document.getElementById('rxApxPrendre'); if (b) b.onclick = () => { ov.style.display = 'none'; rxPrendre(id, b); };
+  }).catch(() => { ov.firstChild.innerHTML = tete + '<div class="rx-vide">Impossible de charger les articles — vérifie la connexion.</div>'; });
 }
 function rxFlux(nom){ return (CONFIG.FLOWS[nom] || '').trim(); }
 function rxPost(nom, body){
@@ -3632,7 +3675,7 @@ function rxCarte(l, i){
   const lab = { vide: '', part: 'manque ' + rxFmt(l.att - l.rec), ok: '✓ complet', exc: l.att ? '+' + rxFmt(l.rec - l.att) + ' en trop' : 'non prévu', ab: '✓ complet', nouv: 'non prévu' }[e];
   return '<div class="rx-card e-' + e + '" data-i="' + i + '">'
     + '<div class="rx-c-top"><div class="rx-c-des">' + rxEsc(l.des || l.ref || 'Article') + '</div>' + (lab ? '<span class="rx-tag e-' + e + '">' + lab + '</span>' : '') + '</div>'
-    + '<div class="rx-c-ref">' + rxEsc(l.ref) + (l.bc ? ' · BC ' + rxEsc(l.bc) : '') + (l.sync !== 'ok' ? ' · <span class="rx-pend">⏳</span>' : '') + '</div>'
+    + '<div class="rx-c-ref">' + rxEsc(l.ref) + (l.bc === 'GRATUIT' ? ' · <b class="rx-gr">🎁 gratuit (non facturé)</b>' : l.bc ? ' · BC ' + rxEsc(l.bc) : '') + (l.sync !== 'ok' ? ' · <span class="rx-pend">⏳</span>' : '') + '</div>'
     + '<div class="rx-c-cpt"><div class="rx-att">Attendu<b>' + rxFmt(l.att) + '</b></div>'
     + '<button class="rx-m" data-rxa="moins" data-i="' + i + '" ' + (l.rec <= 0 ? 'disabled' : '') + '>−</button>'
     + '<button class="rx-val" data-rxa="saisir" data-i="' + i + '" title="Ajouter une quantité">' + rxFmt(l.rec) + '<small>＋ saisir</small></button>'
