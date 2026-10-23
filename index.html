@@ -800,8 +800,13 @@ const CONFIG = {
     RECEPTION_LIGNE: "https://defaultd441528bbc7746368d248ac9d38aed.63.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/05/workflows/6ce1524a6d28458183e90da5e0c123ac/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=QajT5OFQz-BuHkSNwOPGxSHKVvVF9Z6dLKoObf_hDCo",
     RECEPTION_SESSION: "https://defaultd441528bbc7746368d248ac9d38aed.63.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/15/workflows/ec66f25c14c94e53973ce0b20aae9156/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=7oeE59Ct_VUSrvr3UruUMSHV2bX35iQbXRSCdeE6kwM"
   },
-  TOKEN: "rp2026scan"
+  TOKEN: "rp2026scan",
+  // Clé d'accès vérifiée par chaque flux (condition de déclenchement sur le paramètre « t »).
+  // Bloque les robots qui récupèrent les liens de flux publiés sur GitHub (alerte GitGuardian du 23/10/2026).
+  CLE_FLUX: "KUOGuVhl0bTfZZRrMZHbCT9a"
 };
+// Ajoute la clé à TOUS les liens de flux (lecture et écriture) — paramètre ignoré tant que le flux ne le vérifie pas
+Object.keys(CONFIG.FLOWS).forEach(k => { if (CONFIG.FLOWS[k].trim()) CONFIG.FLOWS[k] = CONFIG.FLOWS[k].trim() + (CONFIG.FLOWS[k].includes('?') ? '&' : '?') + 't=' + encodeURIComponent(CONFIG.CLE_FLUX); });
 
 let selectedType = null;
 let selectedVendeur = null;
