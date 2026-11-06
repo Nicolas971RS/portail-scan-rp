@@ -1130,6 +1130,7 @@ document.querySelectorAll('.tabs button[data-view]').forEach(btn => {
     document.getElementById('view-' + btn.dataset.view).classList.add('active');
 
     if (btn.dataset.view === 'liste') {
+      if (libererSiIntact()) showToast('Rien de saisi : le BL est revenu dans « BL en attente »');
       if (!selectedMagasinier) {
         const saved = localStorage.getItem('rp_magasinier');
         if (saved) selectMagasinier(saved);
@@ -1626,6 +1627,7 @@ function _renderSessionsBase() {
 
   let waiting = sessionsCache
     .filter(s => choiceValue(s.Statut) === 'BL Émis' && !estReception(s))
+    .filter(s => !(activeSession && activeSession._priseAFaire && String(activeSession.id) === String(s.ID)))
     .sort((a, b) => new Date(a.Date_Emission) - new Date(b.Date_Emission));
 
   const totalAttente = waiting.length;
@@ -1751,9 +1753,24 @@ function showToast(msg) {
   t._timer = setTimeout(() => t.classList.remove('show'), 2400);
 }
 
+// Retour terrain : un BL ouvert « pour voir » puis quitté restait bloqué dans
+// « Scanner » alors que rien n'avait été fait. Désormais, ouvrir un BL n'envoie
+// rien : la prise en charge part à la PREMIÈRE action (quantité saisie, scan,
+// ligne validée, mise en attente, clôture). Quitter avant = le BL reste dans
+// « BL en attente ».
 function prendreEnCharge(btn) {
   const id = btn.dataset.id;
   const sessionObj = sessionsCache.find(s => String(s.ID) === String(id));
+  if (sessionObj) {
+    const sess = buildSession(sessionObj);
+    sess._priseAFaire = true;
+    sess.magasinier = selectedMagasinier;
+    goToTab('scan');
+    startSession(sess);
+    renderSessions();
+    showToast('BL ouvert — il sera pris en charge à ta première saisie');
+    return;
+  }
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner" style="border-top-color:#fff;"></span>';
 
@@ -1784,6 +1801,52 @@ function prendreEnCharge(btn) {
     btn.disabled = false;
     btn.textContent = 'Prendre en charge';
   });
+}
+
+// Envoie la prise en charge si le BL ouvert ne l'a pas encore été.
+// Vérifie d'abord qu'un collègue ne l'a pas pris entre-temps.
+let _prisePromise = null;
+function priseEnChargeSiBesoin(idSession){
+  const sess = activeSession;
+  if (!sess || !sess._priseAFaire) return Promise.resolve();
+  if (idSession != null && String(idSession) !== String(sess.id)) return Promise.resolve();
+  if (_prisePromise) return _prisePromise;
+  _prisePromise = fetch(CONFIG.FLOWS.LISTE_SESSIONS).then(r => r.json()).catch(() => null).then(data => {
+    const all = data ? (Array.isArray(data) ? data : (data.value || [])) : [];
+    const sp = all.find(x => String(x.ID) === String(sess.id));
+    const st = sp ? choiceValue(sp.Statut) : 'BL Émis', mag = sp ? choiceValue(sp.Magasinier) : '';
+    if (sp && st !== 'BL Émis' && mag && mag !== selectedMagasinier
+        && !confirm('⚠️ ' + mag + ' a déjà pris ce BL en charge (« ' + st + ' »).\n\nContinuer quand même ?')) {
+      throw new Error('pris-par-un-autre');
+    }
+    return fetch(CONFIG.FLOWS.PRISE_EN_CHARGE, {
+      method: 'POST', mode: 'no-cors', keepalive: true,
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ ID_Session: parseInt(sess.id, 10), Magasinier: selectedMagasinier, _token: CONFIG.TOKEN })
+    });
+  }).then(() => new Promise(r => setTimeout(r, 1500))) // laisser le flux écrire le statut avant la suite
+    .then(() => { sess._priseAFaire = false; sessionsCache = sessionsCache.filter(x => String(x.ID) !== String(sess.id)); showToast('BL pris en charge'); })
+    .catch(e => {
+      if (e && e.message === 'pris-par-un-autre') {
+        stopScanner(); activeSession = null; activeLines = []; showScanState('picker'); fetchScanSessions();
+        showToast('BL laissé à ' + 'ton collègue');
+      }
+      throw e;
+    })
+    .finally(() => { _prisePromise = null; });
+  return _prisePromise;
+}
+// Appels de flux qui modifient la session : prise en charge d'abord si besoin
+function fetchApresPrise(url, opts){
+  let id = null; try { id = JSON.parse(opts && opts.body || '{}').ID_Session; } catch (e) {}
+  return priseEnChargeSiBesoin(id).then(() => fetch(url, opts));
+}
+// Quitter un BL ouvert sans rien y faire : il revient dans « BL en attente »
+function libererSiIntact(){
+  if (!activeSession || !activeSession._priseAFaire || _prisePromise) return false;
+  stopScanner(); activeSession = null; activeLines = [];
+  renderSessions();
+  return true;
 }
 
 document.getElementById('btnRefresh').addEventListener('click', (e) => {
@@ -2391,6 +2454,9 @@ function renderScanLines(flashRef){
   updateStats();
   const isLiv = activeSession && estTypeLivraison(activeSession.type);
   const attLbl = (activeSession && (activeSession.type || '').toLowerCase() === 'inventaire physique') ? 'Stock théo.' : 'Attendu';
+  // Préparation demandée depuis Traiter (pas de BL papier) : la quantité à
+  // préparer n'existe que dans l'écran → on l'affiche sur chaque ligne.
+  const estPrep = !!(activeSession && (activeSession.aPreparer || /^PREP-/i.test(String(activeSession.numero || '')) || activeSession.type === 'Préparation matériel'));
   elScanLines.innerHTML = activeLines.map(l => {
     const ecOk = l.ecart === 0;
     const ecTxt = l.ecart === 0 ? '0' : (l.ecart > 0 ? '+' + l.ecart : '' + l.ecart);
@@ -2431,9 +2497,12 @@ function renderScanLines(flashRef){
         + histoHtml
         + stockChip(l)
         + '<div class="sl-metrics" style="justify-content:center;gap:24px;">'
+        + ((estPrep && l.attendue > 0)
+            ? '<div class="m" style="flex:0 0 auto;"><div class="mnum" style="color:#b45309">' + l.attendue + '</div><div class="mlbl">À préparer</div></div>'
+            : '')
         +   '<div class="m" style="flex:0 0 auto;">'
         +     '<input class="liv-input" type="number" min="0" inputmode="numeric" data-ref="' + escAttr(l.reference) + '" data-uid="' + (l.uid || '') + '" value="' + (l.scannee || '') + '" placeholder="0" style="width:72px;font-size:22px;opacity:' + (l.valide ? '.55' : '1') + '"' + (l.valide ? ' disabled' : '') + '>'
-        +     '<div class="mlbl">Livré</div>'
+        +     '<div class="mlbl">' + (estPrep ? 'Préparé' : 'Livré') + '</div>'
         +   '</div>'
         +   '<div class="m" style="flex:0 0 auto;"><button class="btn-valide' + (l.valide ? ' done' : '') + '" data-ref="' + escAttr(l.reference) + '" data-uid="' + (l.uid || '') + '" title="' + (l.valide ? 'Déverrouiller pour modifier' : 'Marquer comme vérifié') + '" onclick="toggleValide(this)">' + (l.valide ? '🔓' : '✓') + '</button><div class="mlbl">' + (l.valide ? 'Modifier' : 'Validé') + '</div></div>'
         + '</div></div>';
@@ -2460,6 +2529,7 @@ function renderScanLines(flashRef){
 }
 
 function toggleValide(btn){
+  if (activeSession && activeSession._priseAFaire) priseEnChargeSiBesoin().catch(() => {});
   const ref=btn.dataset.ref;
   const line=ligneDepuisEl(btn)||activeLines.find(l=>l.reference===ref);
   const row=btn.closest('.scan-line');
@@ -2533,7 +2603,7 @@ function enqueueLinePost(action, line){
   line.syncStatus = 'pending';
   updateSyncBadge(line.reference);
   sendQueue = sendQueue
-    .then(() => fetch(CONFIG.FLOWS.ENREGISTRER_LIGNE, {
+    .then(() => fetchApresPrise(CONFIG.FLOWS.ENREGISTRER_LIGNE, {
       method: 'POST',
       mode: 'no-cors',
       keepalive: true,
@@ -2611,7 +2681,7 @@ function clotureEnvoyerLignes(onProgress){
     // Une ligne « protégée » en reprise (collègue absent) est renvoyée : sinon
     // les scans ajoutés dessus pendant la reprise étaient perdus sans alerte.
     if (line.verrouilleSP) return;
-    chain = chain.then(() => fetch(CONFIG.FLOWS.ENREGISTRER_LIGNE, {
+    chain = chain.then(() => fetchApresPrise(CONFIG.FLOWS.ENREGISTRER_LIGNE, {
       method: 'POST',
       mode: 'no-cors',
       keepalive: true,
@@ -2666,6 +2736,7 @@ function draftSauver(){
   }));
   // Rien de nouveau par rapport à SharePoint → pas de brouillon
   const modifie = activeLines.some(l => !l.verrouilleSP && (!l.id || l.scannee !== (l.scSP || 0)));
+  if (modifie && activeSession._priseAFaire) priseEnChargeSiBesoin().catch(() => {});
   const prec = d[activeSession.id];
   if (!modifie && !(prec && prec.attente)) delete d[activeSession.id];
   else d[activeSession.id] = { t: Date.now(), mag: selectedMagasinier, sess: activeSession, lignes, attente: false };
@@ -2890,7 +2961,7 @@ function reprendreCloture(){
     showToast('⏳ Reprise de la clôture du BL ' + c.numero + ' — garde l\'écran allumé');
     let chain = Promise.resolve();
     c.lignes.forEach(l => {
-      chain = chain.then(() => fetch(CONFIG.FLOWS.ENREGISTRER_LIGNE, {
+      chain = chain.then(() => fetchApresPrise(CONFIG.FLOWS.ENREGISTRER_LIGNE, {
         method: 'POST', mode: 'no-cors', keepalive: true,
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify(payloadLigneScan(c.sid, l))
@@ -2899,7 +2970,7 @@ function reprendreCloture(){
     return chain.then(() => {
       c.etape = 'cloture'; c.tc = Date.now(); _lsSet(CLOT_KEY, c);
       const action = c.kind === 'partielle' ? { action: 'partielle' } : c.kind === 'prete' ? { action: 'prete' } : {};
-      return fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
+      return fetchApresPrise(CONFIG.FLOWS.CLOTURE_SESSION, {
         method: 'POST', mode: 'no-cors', keepalive: true,
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify(Object.assign({ ID_Session: c.sid, _token: CONFIG.TOKEN }, action, c.extra || {}))
@@ -2962,7 +3033,7 @@ elBtnCommandePrete.addEventListener('click', () => {
   clotureDebut('prete', {});
 
   clotureEnvoyerLignes((f, t) => { elBtnCommandePrete.innerHTML = '<span class="spinner"></span> Envoi ' + f + '/' + t + ' — garde l\'écran allumé'; })
-    .then(() => { clotureEtapeFinale(); return fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
+    .then(() => { clotureEtapeFinale(); return fetchApresPrise(CONFIG.FLOWS.CLOTURE_SESSION, {
       method: 'POST',
       mode: 'no-cors',
       keepalive: true,
@@ -3023,7 +3094,7 @@ function prendreEnChargeEtLivrer(id, numero){
   const extra = {};
   if (choiceValue(sess.Magasinier) !== selectedMagasinier) extra.Repris_Par = selectedMagasinier;
 
-  fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
+  fetchApresPrise(CONFIG.FLOWS.CLOTURE_SESSION, {
     method: 'POST',
     mode: 'no-cors',
       keepalive: true,
@@ -3197,7 +3268,7 @@ elBtnCloturer.addEventListener('click', () => {
     .then(() => {
       clotureEtapeFinale();
       elBtnCloturer.innerHTML = '<span class="spinner"></span> Clôture...';
-      return fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
+      return fetchApresPrise(CONFIG.FLOWS.CLOTURE_SESSION, {
         method: 'POST',
         mode: 'no-cors',
       keepalive: true,
@@ -3255,7 +3326,7 @@ elBtnCloturePartielle.addEventListener('click', () => {
     .then(() => {
       clotureEtapeFinale();
       elBtnCloturePartielle.innerHTML = '<span class="spinner"></span> Clôture...';
-      return fetch(CONFIG.FLOWS.CLOTURE_SESSION, {
+      return fetchApresPrise(CONFIG.FLOWS.CLOTURE_SESSION, {
         method: 'POST',
         mode: 'no-cors',
       keepalive: true,
@@ -3287,6 +3358,7 @@ elBtnCloturePartielle.addEventListener('click', () => {
 });
 
 document.getElementById('btnChangeSession').addEventListener('click', () => {
+  if (libererSiIntact()) { showScanState('picker'); fetchScanSessions(); showToast('Rien de saisi : le BL est revenu dans « BL en attente »'); return; }
   stopScanner();
   activeSession = null;
   activeLines = [];
