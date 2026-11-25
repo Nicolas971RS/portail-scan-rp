@@ -808,6 +808,9 @@ const CONFIG = {
     CLOTURE_SESSION: "https://defaultd441528bbc7746368d248ac9d38aed.63.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/d892ff1c300144ef8be13c94812ead45/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=pgS0iG0CU7bcYK0B0hSrAHqKIlWN3Iq5PxzsdrFIq90",
     // Réception conteneur (contrôle des arrivages) — flux dédiés, aucun lien avec les BL ni le stock
     RECEPTION_LIGNE: "https://defaultd441528bbc7746368d248ac9d38aed.63.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/05/workflows/6ce1524a6d28458183e90da5e0c123ac/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=QajT5OFQz-BuHkSNwOPGxSHKVvVF9Z6dLKoObf_hDCo",
+    // Règles de dépendance (robinet → embase) — vides tant que les flux ne sont pas créés : contrôle inactif
+    LISTE_REGLES: "",
+    CREER_PREVENANCE: "",
     RECEPTION_SESSION: "https://defaultd441528bbc7746368d248ac9d38aed.63.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/15/workflows/ec66f25c14c94e53973ce0b20aae9156/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=7oeE59Ct_VUSrvr3UruUMSHV2bX35iQbXRSCdeE6kwM"
   },
   TOKEN: "rp2026scan",
@@ -1962,6 +1965,7 @@ function stockChip(l){
 
 function loadCatalogue(){
   catalogueLoaded = true;
+  depCharger();
   fetch(CONFIG.FLOWS.LISTE_CATALOGUE)
     .then(r => r.json())
     .then(data => {
@@ -2446,6 +2450,7 @@ function updateStats(){
     '<div class="stat"><div class="num">' + refs + '</div><div class="lbl">Références</div></div>'
     + '<div class="stat"><div class="num">' + units + '</div><div class="lbl">Unités</div></div>'
     + '<div class="stat' + (ecarts > 0 ? ' has-ecart' : '') + '"><div class="num">' + ecarts + '</div><div class="lbl">Écarts</div></div>';
+  try { depBandeau(); } catch(e){}
   draftSauver();
 }
 
@@ -3193,7 +3198,117 @@ function surlignerLignes(lignes){
   if (premier) premier.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 var _clotureValidee = false, _partielleValidee = false;
+
+// ═══ RÈGLES DE DÉPENDANCE (ex. robinet HUOT → embase YACUO du même diamètre) ═══
+// Règles lues dans Regles_Dependance (flux LISTE_REGLES). Au scan : bandeau
+// « il manque l'embase ». À la clôture : alerte à 3 choix. Un article retenu
+// crée une ligne Prevenances_Client (flux CREER_PREVENANCE) → le vendeur voit
+// « 📞 Clients à prévenir » dans la Vue Matin du dashboard.
+let depRegles = [];
+const _depForces = {}; // { idSession: Set(ref) } — « le client les prend quand même » déjà confirmé
+const DEP_MSG_DEFAUT = 'Bonjour,\n\nNous préparons votre commande {commande}. Les articles suivants ne peuvent pas être livrés sans leur embase, qui n\'est pas disponible en stock pour le moment :\n{articles}\n\nNous les gardons de côté et nous vous les livrerons avec leurs embases dès leur arrivée. Le reste de votre commande suit normalement.\n\nN\'hésitez pas à nous appeler pour toute question.\n\nCordialement,\nRéseaux Plus Guadeloupe';
+const _depN = v => String(v == null ? '' : v).trim().toUpperCase();
+function depCharger(){
+  if (!CONFIG.FLOWS.LISTE_REGLES) return;
+  fetch(CONFIG.FLOWS.LISTE_REGLES).then(r => r.json()).then(data => {
+    const raw = Array.isArray(data) ? data : (data.value || []);
+    depRegles = raw.filter(r => r.Actif !== false && r.Actif !== 0 && String(r.Actif) !== 'Non' && _depN(r.Article_Principal) && _depN(r.Article_Requis));
+  }).catch(() => {});
+}
+function depRegleDe(ref){
+  const R = _depN(ref); if (!R) return null;
+  return depRegles.find(r => { const p = _depN(r.Article_Principal); return /pr[ée]fixe/i.test(choiceValue(r.Type_Correspondance) || '') ? R.startsWith(p) : R === p; }) || null;
+}
+function depManques(){
+  if (!depRegles.length || !activeSession || !estTypeLivraison(activeSession.type)) return [];
+  const forces = _depForces[activeSession.id] || new Set();
+  const dispo = new Map();
+  activeLines.forEach(l => { const R = _depN(l.reference); if (R) dispo.set(R, (dispo.get(R) || 0) + (Number(l.scannee) || 0)); });
+  const out = [];
+  activeLines.forEach(l => {
+    const q = Number(l.scannee) || 0; if (q <= 0) return;
+    const r = depRegleDe(l.reference); if (!r || forces.has(_depN(l.reference))) return;
+    const req = String(r.Article_Requis).split(/[;,]/).map(_depN).filter(Boolean);
+    const ratio = Number(r.Ratio) > 0 ? Number(r.Ratio) : 1;
+    let besoin = q * ratio;
+    for (const x of req){ const d = dispo.get(x) || 0, pris = Math.min(d, besoin); dispo.set(x, d - pris); besoin -= pris; if (besoin <= 1e-9) break; }
+    if (besoin > 1e-9) out.push({ ligne: l, regle: r, requis: req, qte: q, manque: +besoin.toFixed(3), aRetenir: Math.min(q, Math.ceil(besoin / ratio - 1e-9)) });
+  });
+  return out;
+}
+function _depDes(ref){ const c = lookupCatalogue(ref); return c ? (c.designation || '') : ''; }
+function _depStock(req){ let t = null; req.forEach(x => { const s = stockImage(x); if (s != null) t = (t || 0) + Math.max(0, s); }); return t; }
+// Bandeau permanent au-dessus des lignes pendant le scan (pas un toast : il reste tant que l'embase manque)
+function depBandeau(){
+  let el = document.getElementById('depBandeau');
+  const mq = depManques();
+  if (!mq.length){ if (el) el.remove(); return; }
+  if (!el){ el = document.createElement('div'); el.id = 'depBandeau'; elScanLines.parentNode.insertBefore(el, elScanLines); }
+  const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  el.style.cssText = 'background:#fff7ed;border:2px solid #ea580c;border-radius:12px;padding:10px 12px;margin:8px 0;font-size:14px;color:#7c2d12;line-height:1.4';
+  el.innerHTML = '<div style="font-weight:900;margin-bottom:4px">🔗 Article à ne pas livrer sans son embase</div>'
+    + mq.map(m => {
+      const st = _depStock(m.requis);
+      return '• <b style="font-family:monospace">' + esc(m.ligne.reference) + '</b> × ' + m.qte + ' → il manque <b>' + m.manque + '</b> embase <b style="font-family:monospace">' + esc(m.requis.join(' ou ')) + '</b> ' + esc(_depDes(m.requis[0]))
+        + (st == null ? '' : st > 0 ? ' <span style="color:#2e7d32;font-weight:800">(stock ' + st + ')</span>' : ' <span style="color:#b91c1c;font-weight:800">(pas en stock)</span>');
+    }).join('<br>');
+}
+function depEnvoyer(mq, statut, motif){
+  if (!CONFIG.FLOWS.CREER_PREVENANCE || !mq.length) return;
+  const retenu = statut === 'À prévenir';
+  mq.forEach(m => {
+    const q = retenu ? m.aRetenir : m.qte;
+    const des = m.ligne.designation || _depDes(m.ligne.reference);
+    const art = '- ' + q + ' × ' + m.ligne.reference + (des ? ' ' + des : '') + ' (embase ' + m.requis.map(x => x + (_depDes(x) ? ' ' + _depDes(x) : '')).join(' ou ') + ')';
+    const msg = retenu ? String(m.regle.Message_Client || DEP_MSG_DEFAUT).replace(/\{client\}/g, activeSession.client || '').replace(/\{commande\}/g, '(BL ' + activeSession.numero + ')').replace(/\{articles\}/g, art) : '';
+    const payload = { Article_Retenu: m.ligne.reference, Designation: des, Qte_Retenue: q, Article_Manquant: m.requis.join(' ; '), ID_Regle: m.regle.ID || 0,
+      Client: activeSession.client || '', N_BL: activeSession.numero || '', ID_Session: activeSession.id || 0, Source: 'Portail Scan',
+      Vendeur: activeSession.vendeur || '', Statut: statut, Motif: motif || '', Message: msg, Magasinier: activeSession.magasinier || selectedMagasinier || '', _token: CONFIG.TOKEN };
+    fetch(CONFIG.FLOWS.CREER_PREVENANCE, { method: 'POST', mode: 'no-cors', keepalive: true, headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) }).catch(() => {});
+  });
+}
+// Appelée au début de demanderCloture : true = une alerte est affichée, la clôture attend.
+function depCloture(){
+  const mq = depManques();
+  if (!mq.length) return false;
+  const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const enStock = mq.every(m => (_depStock(m.requis) || 0) >= m.manque);
+  let motif = '';
+  const corps = '<table style="width:100%;border-collapse:collapse;font-size:14px;background:#fff;border-radius:10px;overflow:hidden;margin-bottom:8px">'
+    + mq.map(m => { const st = _depStock(m.requis);
+      return '<tr style="border-top:1px solid #e2e8f0"><td style="padding:8px"><div style="font-weight:800;font-family:monospace">' + esc(m.ligne.reference) + ' × ' + m.qte + '</div><div style="font-size:12px;color:#64748b">' + esc(m.ligne.designation || _depDes(m.ligne.reference)) + '</div></td>'
+        + '<td style="padding:8px">manque <b>' + m.manque + '</b> × <b style="font-family:monospace">' + esc(m.requis.join(' ou ')) + '</b><div style="font-size:12px;font-weight:800;color:' + (st > 0 ? '#2e7d32' : '#b91c1c') + '">' + (st == null ? '' : st > 0 ? 'en stock : ' + st : 'pas en stock') + '</div></td></tr>'; }).join('')
+    + '</table>'
+    + (enStock ? '<div style="font-size:14px;font-weight:800;color:#2e7d32">✅ L\'embase est en stock : scanne-la et ajoute-la. Le vendeur doit refaire le BL dans Image.</div>'
+               : '<div style="font-size:14px;font-weight:800;color:#9a3412">Pas d\'embase en stock : ne donne pas ces articles. Le vendeur sera averti pour prévenir le client.</div>')
+    + '<div id="depMotifZone" style="margin-top:10px"><label style="font-size:13px;font-weight:700;color:#334155">Si le client les prend quand même — motif :</label>'
+    + '<input id="depMotif" placeholder="Ex. le client a déjà ses embases" style="width:100%;box-sizing:border-box;margin-top:4px;padding:10px;font-size:15px;border:2px solid #cbd5e1;border-radius:10px"></div>';
+  const retenir = () => {
+    mq.forEach(m => { m.ligne.scannee = Math.max(0, m.ligne.scannee - m.aRetenir); m.ligne.ecart = m.ligne.scannee - m.ligne.attendue; });
+    depEnvoyer(mq, 'À prévenir', '');
+    renderScanLines();
+    showToast('Articles retenus — le vendeur préviendra le client');
+    setTimeout(demanderCloture, 150);
+  };
+  const forcer = () => {
+    if (motif.trim().length < 4){ showToast('Indique le motif (au moins quelques mots)'); setTimeout(depCloture, 150); return; }
+    const set = _depForces[activeSession.id] = _depForces[activeSession.id] || new Set();
+    mq.forEach(m => set.add(_depN(m.ligne.reference)));
+    depEnvoyer(mq, 'Livré sans requis', motif.trim());
+    setTimeout(demanderCloture, 150);
+  };
+  alerteCloture('orange', 'Article sans son embase', 'Ces articles ne partent pas sans leur embase.', corps, [
+    { label: '↩ Retour au scan<br><span style="font-weight:600;font-size:13px">J\'ajoute l\'embase</span>', couleur: 'vert', plein: enStock, action: () => setTimeout(() => surlignerLignes(mq.map(m => m.ligne)), 150) },
+    { label: '⏸ Je ne donne pas ces articles<br><span style="font-weight:600;font-size:13px">Le vendeur prévient le client</span>', couleur: 'orange', plein: !enStock, action: retenir },
+    { label: '⚠️ Le client les prend quand même<br><span style="font-weight:600;font-size:13px">Motif obligatoire ci-dessus</span>', couleur: 'neutre', action: forcer }
+  ]);
+  const inp = document.getElementById('depMotif');
+  if (inp) inp.addEventListener('input', () => { motif = inp.value; });
+  return true;
+}
+
 function demanderCloture(){
+  if (depCloture()) return; // robinet sans embase… : on tranche d'abord
   const lignes = activeLines.filter(l => !l.verrouilleSP);
   const manque = lignes.filter(l => l.scannee < l.attendue);
   const surplus = lignes.filter(l => l.scannee > l.attendue);
