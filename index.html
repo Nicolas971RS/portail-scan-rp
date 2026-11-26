@@ -3675,8 +3675,8 @@ var _bonEnvoiEnCours = false;
 //   'ecart'     : clôture définitive alors qu'il manque des articles
 function natureBon(sess, kind, lignes){
   if (kind === 'partielle') return 'partielle';
-  if (sess && String(sess.blRacine || '').trim()) return 'solde';
   if ((lignes || []).some(l => (Number(l.scannee) || 0) < (Number(l.attendue) || 0))) return 'ecart';
+  if (sess && String(sess.blRacine || '').trim()) return 'solde';
   return '';
 }
 function signatureRequise(sess, nature){
@@ -3708,11 +3708,54 @@ function bonSnapshot(sess, lignes, kind, extra){
 function bonFileLire(){ try { return JSON.parse(localStorage.getItem(BON_QUEUE) || '[]'); } catch (e) { return []; } }
 function bonFileEcrire(a){ try { localStorage.setItem(BON_QUEUE, JSON.stringify(a)); } catch (e) { console.warn('[bon signé] stockage local plein', e); } }
 // Après une clôture réussie : met le bon en file et l'envoie
-function bonEnvoyer(snap){
+async function bonEnvoyer(snap){
   _sigCourante = null;
   if (!snap) return;
+  if (snap.blRacine && !snap.histo) { try { snap.histo = await bonHistorique(snap); } catch (e) { console.warn('[bon signé] historique', e); snap.histo = null; } }
   bonFileEcrire(bonFileLire().filter(x => String(x.sid) !== String(snap.sid)).concat([snap]));
   bonVider();
+}
+// BL de suite : reconstitue tout le BL d'origine (Qté BL, déjà livré, livré ce jour, reste)
+// à partir des sessions de la même chaîne (BL_Racine) et de leurs lignes scannées.
+async function bonHistorique(snap){
+  if (!String(snap.blRacine || '').trim()) return null;
+  const [rs, rl] = await Promise.all([
+    fetch(CONFIG.FLOWS.LISTE_SESSIONS).then(r => r.json()),
+    fetch(CONFIG.FLOWS.LISTE_LIGNES).then(r => r.json())
+  ]);
+  const sess = Array.isArray(rs) ? rs : (rs.value || []);
+  const lig = Array.isArray(rl) ? rl : (rl.value || []);
+  const bas = v => String(v == null ? '' : v).trim().toLowerCase();
+  const parNum = n => sess.find(x => bas(x.Numero_BL) === bas(n));
+  const racineDe = x => {
+    let c = x, k = 0;
+    while (c && k++ < 20) {
+      const r = String(c.BL_Racine || '').trim();
+      if (!r) return String(c.Numero_BL || '').trim();
+      const p = parNum(r);
+      if (!p || p.ID === c.ID) return r;
+      c = p;
+    }
+    return '';
+  };
+  const cur = sess.find(x => String(x.ID) === String(snap.sid));
+  const racine = cur ? racineDe(cur) : String(snap.blRacine).trim();
+  const root = parNum(racine);
+  if (!root) return null;
+  const fam = sess.filter(x => bas(racineDe(x)) === bas(racine));
+  const lignesDe = id => lig.filter(l => String(lineSessionId(l)) === String(id));
+  const cle = (r, d) => bas(String(r || '').trim() || d);
+  const out = [], idx = {};
+  const ligne = (r, d) => { const k = cle(r, d); if (!idx[k]) { idx[k] = { ref: r || '', des: d || '', bl: 0, deja: 0, liv: 0 }; out.push(idx[k]); } return idx[k]; };
+  lignesDe(root.ID).forEach(l => { ligne(l.Reference_Article, l.Designation).bl += num(l.Quantite_Attendue); });
+  const precedentes = [];
+  fam.filter(x => String(x.ID) !== String(snap.sid)).sort((a, b) => a.ID - b.ID).forEach(x => {
+    let u = 0;
+    lignesDe(x.ID).forEach(l => { const q = num(l.Quantite_Scannee); if (!q) return; u += q; ligne(l.Reference_Article, l.Designation).deja += q; });
+    if (u) precedentes.push({ numero: x.Numero_BL || '', date: x.Date_Scan || x.Modified || '', u: u });
+  });
+  snap.lignes.forEach(l => { const o = ligne(l.ref, l.des); o.liv += l.liv; if (!o.bl) o.bl = l.att; });
+  return { racine: racine, lignes: out, precedentes: precedentes };
 }
 function _gpDate(iso, sep){
   const d = new Date(iso);
@@ -3758,16 +3801,18 @@ async function bonPdf(s){
     { x: x, y: yTop, borderColor: NOIR, borderWidth: 1 });
   const ligneH = (x1, x2, y, ep) => page.drawLine({ start: { x: x1, y: y }, end: { x: x2, y: y }, thickness: ep || 0.8, color: NOIR });
   const ligneV = (x, y1, y2) => page.drawLine({ start: { x: x, y: y1 }, end: { x: x, y: y2 }, thickness: 0.8, color: NOIR });
-  const reste = s.lignes.reduce((a, l) => a + Math.max(0, l.att - l.liv), 0);
-  const surplus = s.lignes.some(l => l.liv > l.att);
+  const H_ = s.histo && s.histo.lignes && s.histo.lignes.length ? s.histo : null;
+  const resteH = H_ ? H_.lignes.reduce((a, l) => a + Math.max(0, l.bl - l.deja - l.liv), 0) : 0;
+  const reste = H_ ? resteH : s.lignes.reduce((a, l) => a + Math.max(0, l.att - l.liv), 0);
+  const surplus = H_ ? H_.lignes.some(l => l.deja + l.liv > l.bl) : s.lignes.some(l => l.liv > l.att);
   const typeLiv = s.kind === 'partielle' ? 'Livraison partielle - le reste fera l\'objet d\'un nouveau BL'
     : reste > 0 ? 'Livraison avec écart - BL soldé sans le reste'
-    : s.nature === 'solde' ? 'Livraison du solde - le BL est entièrement livré'
+    : s.nature === 'solde' ? 'Livraison du solde - le BL ' + ((H_ && H_.racine) || s.blRacine || '') + ' est entièrement livré'
     : surplus ? 'Livraison avec écart - quantité livrée supérieure au BL' : 'Livraison complète';
   const vend = s.vendeur ? ((VENDEUR_CODES[s.vendeur] ? VENDEUR_CODES[s.vendeur] + ' - ' : '') + s.vendeur) : '';
   // Colonnes du tableau
-  const X = [M, M + 76, M + 300, M + 352, M + 404, M + 452, W - M];
-  const TETES = ['Référence', 'Désignation', 'Qté BL', 'Livrée', 'Reste', 'Observations'];
+  const X = H_ ? [M, M + 70, M + 258, M + 312, M + 372, M + 432, M + 482, W - M] : [M, M + 76, M + 300, M + 352, M + 404, M + 452, W - M];
+  const TETES = H_ ? ['Référence', 'Désignation', 'Qté BL', 'Déjà livré', 'Ce jour', 'Reste', 'Obs.'] : ['Référence', 'Désignation', 'Qté BL', 'Livrée', 'Reste', 'Observations'];
   const T_HAUT = H - 262, T_BAS_DER = 262, T_BAS = 70, PAS = 14;
   const entete = () => {
     page = doc.addPage([W, H]);
@@ -3794,7 +3839,7 @@ async function bonPdf(s){
     // Client
     txt(coupe(s.client || '', fCB, 11, W - M - 330), 330, H - 150, 11, fCB);
     if (s.contact) txt(coupe('Contact : ' + s.contact, fC, 9.5, W - M - 330), 330, H - 165, 9.5, fC);
-    txt('Ce bon atteste uniquement les quantités remises ce jour au magasin. Il complète le BL ' + (s.blRacine || s.numero) + ' signé au comptoir, qui reste le document de référence.', M, H - 254, 7.5, fR, GRIS);
+    txt('Ce bon atteste uniquement les quantités remises ce jour au magasin. Il complète le BL ' + ((H_ && H_.racine) || s.blRacine || s.numero) + ' signé au comptoir, qui reste le document de référence.', M, H - 254, 7.5, fR, GRIS);
     txt('Type :', M, H - 240, 9.5, fB);
     txt(typeLiv, M + 36, H - 240, 9.5, fC, s.kind === 'partielle' || reste > 0 || surplus ? ORANGE : NOIR);
   };
@@ -3802,7 +3847,7 @@ async function bonPdf(s){
     cadre(M, T_HAUT, W - 2 * M, T_HAUT - bas, 9);
     TETES.forEach((h, i) => {
       const x0 = X[i], x1 = X[i + 1];
-      txt(h, x0 + (x1 - x0) / 2 - larg(h, fB, 9) / 2, T_HAUT - 16, 9, fB);
+      txt(h, x0 + (x1 - x0) / 2 - larg(h, fB, H_ ? 8.5 : 9) / 2, T_HAUT - 16, H_ ? 8.5 : 9, fB);
       if (i > 0) ligneV(x0, T_HAUT, bas);
     });
     ligneH(M, W - M, T_HAUT - 24);
@@ -3811,15 +3856,30 @@ async function bonPdf(s){
   const parPageDer = Math.floor((T_HAUT - 30 - T_BAS_DER) / PAS);
   const parPage = Math.floor((T_HAUT - 30 - T_BAS) / PAS);
   const paquets = []; let i = 0;
-  while (s.lignes.length - i > parPageDer) { paquets.push(s.lignes.slice(i, i + parPage)); i += parPage; }
-  paquets.push(s.lignes.slice(i));
+  const LT = H_ ? H_.lignes : s.lignes;
+  while (LT.length - i > parPageDer) { paquets.push(LT.slice(i, i + parPage)); i += parPage; }
+  paquets.push(LT.slice(i));
   paquets.forEach((lot, p) => {
     const derniere = p === paquets.length - 1;
     entete();
     const bas = derniere ? T_BAS_DER : T_BAS;
     tableau(bas);
     let y = T_HAUT - 40;
-    lot.forEach(l => {
+    const q2 = v => Number(v).toFixed(2).replace('.', ',');
+    if (H_) lot.forEach(l => {
+      const r = Math.max(0, l.bl - l.deja - l.liv);
+      txt(coupe(l.ref, fC, 9, X[1] - X[0] - 8), X[0] + 5, y, 9, fC);
+      txt(coupe(l.des, fC, 9, X[2] - X[1] - 8), X[1] + 5, y, 9, fC);
+      droite(q2(l.bl), X[3] - 6, y, 9, fC);
+      droite(l.deja ? q2(l.deja) : '-', X[4] - 6, y, 9, fC, l.deja ? NOIR : GRIS);
+      droite(l.liv ? q2(l.liv) : '-', X[5] - 6, y, 9, fCB, l.liv ? NOIR : GRIS);
+      droite(r ? q2(r) : '-', X[6] - 6, y, 9, r ? fCB : fC, r ? ORANGE : GRIS);
+      if (r) txt('À livrer', X[6] + 4, y, 7.5, fR, ORANGE);
+      else if (l.deja + l.liv > l.bl) txt('+' + (l.deja + l.liv - l.bl), X[6] + 4, y, 7.5, fR, ROUGE);
+      else txt('Soldé', X[6] + 4, y, 7.5, fR, GRIS);
+      y -= PAS;
+    });
+    else lot.forEach(l => {
       const r = Math.max(0, l.att - l.liv);
       txt(coupe(l.ref, fC, 9, X[1] - X[0] - 8), X[0] + 5, y, 9, fC);
       txt(coupe(l.des, fC, 9, X[2] - X[1] - 8), X[1] + 5, y, 9, fC);
@@ -3833,6 +3893,10 @@ async function bonPdf(s){
     if (!derniere) { txt('Suite page suivante...', W - M - 110, T_BAS - 14, 8.5, fR, GRIS); return; }
     // Total
     const totL = s.lignes.reduce((a, l) => a + l.liv, 0);
+    if (H_) {
+      const prec = H_.precedentes.map(p => p.numero + (p.date ? ' le ' + _gpTexte(p.date).slice(0, 10) : '') + ' (' + p.u + ' u.)').join(' ; ');
+      txt(coupe(totL + ' unité(s) livrée(s) ce jour' + (reste ? ' - ' + reste + ' unité(s) restant à livrer' : ' - BL entièrement livré') + (prec ? '  |  Livraisons précédentes : ' + prec : ''), fB, 8.5, W - 2 * M - 8), M + 4, T_BAS_DER - 13, 8.5, fB);
+    } else
     txt(s.lignes.length + ' référence(s) - ' + totL + ' unité(s) livrée(s)' + (reste ? ' - ' + reste + ' unité(s) restant à livrer' : ''), M + 4, T_BAS_DER - 13, 8.5, fB);
     // Réserves
     let yr = T_BAS_DER - 31;
@@ -3842,7 +3906,7 @@ async function bonPdf(s){
     mots.forEach(m => { const t = lg ? lg + ' ' + m : m; if (fC.widthOfTextAtSize(t, 9.5) > W - 2 * M - 110) { lignesRes.push(lg); lg = m; } else lg = t; });
     if (lg) lignesRes.push(lg);
     lignesRes.slice(0, 3).forEach(t => { txt(t, M + 108, yr, 9.5, s.reserves ? fCB : fC, s.reserves ? ROUGE : NOIR); yr -= 12; });
-    txt('Le client reconnaît avoir reçu les articles et quantités de la colonne « Livrée »' + (s.reserves ? ', sous les réserves ci-dessus.' : ', sans réserve.'), M, T_BAS_DER - 70, 8.5, fR);
+    txt('Le client reconnaît avoir reçu les articles et quantités de la colonne ' + (H_ ? '« Ce jour »' : '« Livrée »') + (s.reserves ? ', sous les réserves ci-dessus.' : ', sans réserve.'), M, T_BAS_DER - 70, 8.5, fR);
     // Zone signature (comme le BL Image : CERTIFIÉ CONFORME / SIGNATURE CLIENT)
     const zh = 116, zt = T_BAS_DER - 80;
     cadre(M, zt, W - 2 * M, zh, 9);
