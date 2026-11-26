@@ -795,6 +795,7 @@ table.rx-apx{width:100%;border-collapse:collapse;font-size:14px;margin-top:4px}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script>
 const CONFIG = {
   FLOWS: {
@@ -810,6 +811,8 @@ const CONFIG = {
     RECEPTION_LIGNE: "https://defaultd441528bbc7746368d248ac9d38aed.63.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/05/workflows/6ce1524a6d28458183e90da5e0c123ac/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=QajT5OFQz-BuHkSNwOPGxSHKVvVF9Z6dLKoObf_hDCo",
     // Règles de dépendance (robinet → embase) — vides tant que les flux ne sont pas créés : contrôle inactif
     LISTE_REGLES: "",
+    // Bon de livraison signé (PDF joint à la session) — vide = signature non demandée
+    SIGNATURE_LIVRAISON: "https://defaultd441528bbc7746368d248ac9d38aed.63.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/21/workflows/de329fe41b22459d8b58b50e22261240/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=VxkIO1pF_zBPdcjXx17kIYDrdRUof3mwwFoe27bEUSg",
     CREER_PREVENANCE: "",
     RECEPTION_SESSION: "https://defaultd441528bbc7746368d248ac9d38aed.63.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/15/workflows/ec66f25c14c94e53973ce0b20aae9156/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=7oeE59Ct_VUSrvr3UruUMSHV2bX35iQbXRSCdeE6kwM"
   },
@@ -2113,6 +2116,7 @@ function renderScanPicker(list){
 }
 
 function startSession(sess){
+  if (typeof _sigCourante !== 'undefined' && _sigCourante && String(_sigCourante.sid) !== String(sess.id)) _sigCourante = null;
   _draftSuspendu = true; // pas de sauvegarde tant que les lignes ne sont pas rechargées
   activeSession = sess;
   activeLines = [];
@@ -3098,7 +3102,11 @@ function prendreEnChargeEtLivrer(id, numero){
 
   const extra = {};
   if (choiceValue(sess.Magasinier) !== selectedMagasinier) extra.Repris_Par = selectedMagasinier;
-
+  const sessB = buildSession(sess);
+  if (exigerSignature(sessB, () => prendreEnChargeEtLivrerSigne(id, numero, sessB, extra))) return;
+  prendreEnChargeEtLivrerSigne(id, numero, sessB, extra);
+}
+function prendreEnChargeEtLivrerSigne(id, numero, sessB, extra){
   fetchApresPrise(CONFIG.FLOWS.CLOTURE_SESSION, {
     method: 'POST',
     mode: 'no-cors',
@@ -3110,6 +3118,7 @@ function prendreEnChargeEtLivrer(id, numero){
     e[String(id)] = { sid: id, numero, kind: 'normale', extra, lignes: [], tEnv: Date.now(), echec: false };
     _lsSet(ENVOI_KEY, e); planifierVerifEnvois(20000);
     showToast('✅ BL ' + numero + ' — livraison confirmée');
+    bonDepuisSession(sessB, extra);
     fetchSessions();
   }).catch(() => {
     showToast('🔴 Échec de l\'envoi — réessaie.');
@@ -3374,6 +3383,9 @@ elBtnCloturer.addEventListener('click', () => {
     + '\n\nSi le client a bien tout emporté, Annuler et corriger la quantité.\nClôturer quand même ? (définitif)';
   if (!confirm(msgConfirm)) return;
   }
+  // Signature du client (livraison) : relance ce même bouton une fois signée
+  if (exigerSignature(activeSession, () => { if (estTypeLivraison(activeSession.type)) _clotureValidee = true; elBtnCloturer.click(); })) return;
+  const _bon = bonSnapshot(activeSession, activeLines, 'normale', reprisPayloadExtra());
 
   elBtnCloturer.disabled = true;
   elBtnCloturer.innerHTML = '<span class="spinner"></span> Envoi des lignes...';
@@ -3393,6 +3405,7 @@ elBtnCloturer.addEventListener('click', () => {
     })
     .then(() => {
       clotureEnvoyee(activeSession.id);
+      bonEnvoyer(_bon);
       stopScanner();
       const units = activeLines.reduce((a, l) => a + l.scannee, 0);
       document.getElementById('scanSuccessText').textContent =
@@ -3432,6 +3445,8 @@ elBtnCloturePartielle.addEventListener('click', () => {
     "Ce qui a été scanné part en stock maintenant. Un nouveau BL sera créé automatiquement pour le reste :\n\n" +
     detail
   )) return;
+  if (exigerSignature(activeSession, () => { _partielleValidee = true; elBtnCloturePartielle.click(); })) return;
+  const _bon = bonSnapshot(activeSession, activeLines, 'partielle', reprisPayloadExtra());
 
   elBtnCloturePartielle.disabled = true;
   elBtnCloturePartielle.innerHTML = '<span class="spinner"></span> Envoi des lignes...';
@@ -3451,6 +3466,7 @@ elBtnCloturePartielle.addEventListener('click', () => {
     })
     .then(() => {
       clotureEnvoyee(activeSession.id);
+      bonEnvoyer(_bon);
       stopScanner();
       const units = activeLines.reduce((a, l) => a + l.scannee, 0);
       document.getElementById('scanSuccessText').textContent =
@@ -3527,15 +3543,17 @@ updateConnBanner();
 </script>
 
 <div id="sigOverlay" style="display:none;position:fixed;inset:0;background:rgba(26,39,68,.55);z-index:9999;align-items:center;justify-content:center;padding:16px">
-  <div style="background:#fff;border-radius:14px;padding:20px;width:100%;max-width:420px;max-height:92vh;overflow-y:auto">
-    <h3 style="margin:0 0 4px;font-size:17px">✍️ Signature</h3>
+  <div style="background:#fff;border-radius:14px;padding:20px;width:100%;max-width:560px;max-height:92vh;overflow-y:auto">
+    <h3 style="margin:0 0 4px;font-size:17px">✍️ Signature du client</h3>
     <p style="font-size:13px;color:#6b7280;margin:0 0 14px" id="sigBlLabel"></p>
     <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Nom du signataire *</label>
     <input type="text" id="sigNom" placeholder="Nom de la personne qui prend en charge" style="width:100%;padding:10px 12px;border:1.5px solid #dde3ee;border-radius:8px;font-size:14px;margin-bottom:14px;font-family:inherit;box-sizing:border-box">
     <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">Signature *</label>
     <div style="border:2px dashed #c7c9d6;border-radius:10px;overflow:hidden;touch-action:none;background:#fafafa">
-      <canvas id="sigCanvas" style="width:100%;height:180px;display:block"></canvas>
+      <canvas id="sigCanvas" style="width:100%;height:220px;display:block"></canvas>
     </div>
+    <label style="font-size:13px;font-weight:600;display:block;margin:12px 0 6px">Réserves du client <span style="font-weight:400;color:#6b7280">(casse, manquant… — sinon laisser vide)</span></label>
+    <textarea id="sigReserves" rows="2" placeholder="Aucune réserve" style="width:100%;padding:9px 12px;border:1.5px solid #dde3ee;border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;resize:vertical"></textarea>
     <p id="sigMsg" style="font-size:12.5px;color:#dc2626;margin:8px 0 0;display:none"></p>
     <div style="display:flex;gap:10px;margin-top:14px">
       <button id="sigClear" type="button" style="flex:1;padding:12px;border-radius:8px;border:1.5px solid #dde3ee;background:#fff;font-weight:600;cursor:pointer;font-family:inherit;font-size:13.5px">Effacer</button>
@@ -3576,6 +3594,7 @@ function sigPos(e){
 function sigStart(e){
   e.preventDefault();
   sigDrawing = true;
+  elSigMsg.style.display = 'none';
   const pos = sigPos(e);
   sigCtx.beginPath();
   sigCtx.moveTo(pos.x, pos.y);
@@ -3614,7 +3633,8 @@ document.getElementById('sigValidate').addEventListener('click', () => {
   const cb = sigCallback;
   elSigOverlay.style.display = 'none';
   sigCallback = null;
-  if (cb) cb({ signature: dataUrl, nom: nom });
+  const reserves = (document.getElementById('sigReserves').value || '').trim();
+  if (cb) cb({ signature: dataUrl, nom: nom, reserves: reserves });
 });
 
 // demanderSignature(numeroBL, nomParDefaut, callback) — ouvre l'overlay ;
@@ -3623,6 +3643,7 @@ document.getElementById('sigValidate').addEventListener('click', () => {
 function demanderSignature(numeroBL, nomParDefaut, callback){
   elSigBlLabel.textContent = 'BL / FC ' + numeroBL;
   elSigNom.value = nomParDefaut || '';
+  document.getElementById('sigReserves').value = '';
   elSigMsg.style.display = 'none';
   sigCallback = callback;
   elSigOverlay.style.display = 'flex';
@@ -3632,6 +3653,258 @@ function demanderSignature(numeroBL, nomParDefaut, callback){
     sigHasStroke = false;
   });
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// BON DE LIVRAISON SIGNÉ — signature client à la clôture d'une livraison
+// La signature est demandée juste avant l'envoi de la clôture (complète,
+// partielle, « Prendre en charge et livrer »). Après la clôture, le portail
+// fabrique un PDF figé (articles livrés, reste, réserves, signature, date/heure,
+// empreinte SHA-256) et l'envoie au flux SIGNATURE_LIVRAISON, qui le joint à la
+// session sous le nom BL_signe_<BL>_<date>_<heure>.pdf : le dashboard l'affiche
+// alors comme « BL signé déposé » (Voir → imprimer). File d'attente sur
+// l'appareil : si le réseau coupe, le bon repart tout seul plus tard.
+// Flux vide dans CONFIG = signature non demandée (comportement actuel).
+// ═══════════════════════════════════════════════════════════════════
+var _sigCourante = null;                 // { sid, nom, reserves, signature, t }
+var BON_QUEUE = 'rp_scan_bons_signes';
+var _bonEnvoiEnCours = false;
+function signatureRequise(sess){
+  return !!(CONFIG.FLOWS.SIGNATURE_LIVRAISON || '').trim() && !!sess && estTypeLivraison(sess.type)
+    && !String(sess.numero || '').toUpperCase().startsWith('PREP-BC-');
+}
+function signaturePour(sid){ return _sigCourante && String(_sigCourante.sid) === String(sid) ? _sigCourante : null; }
+// Signature manquante → ouvre l'écran et renvoie true (l'appelant s'arrête ; relancer() est rappelé après signature)
+function exigerSignature(sess, relancer){
+  if (!signatureRequise(sess) || signaturePour(sess.id)) return false;
+  demanderSignature(sess.numero, sess.contact || '', sig => {
+    _sigCourante = Object.assign({ sid: sess.id, t: new Date().toISOString() }, sig);
+    relancer();
+  });
+  return true;
+}
+function bonSnapshot(sess, lignes, kind, extra){
+  const sig = signaturePour(sess.id);
+  if (!sig) return null;
+  return {
+    sid: sess.id, numero: String(sess.numero || ''), client: sess.client || '', vendeur: sess.vendeur || '',
+    magasinier: sess.magasinier || selectedMagasinier || '', reprisPar: (extra && extra.Repris_Par) || '', kind: kind, contact: sess.contact || '', blRacine: sess.blRacine || '',
+    lignes: (lignes || []).map(l => ({ ref: l.reference || '', des: l.designation || '', att: Number(l.attendue) || 0, liv: Number(l.scannee) || 0 })),
+    nom: sig.nom, reserves: sig.reserves || '', png: sig.signature, tSign: sig.t,
+    appareil: (navigator.userAgent || '').replace(/\s+/g, ' ').slice(0, 160)
+  };
+}
+function bonFileLire(){ try { return JSON.parse(localStorage.getItem(BON_QUEUE) || '[]'); } catch (e) { return []; } }
+function bonFileEcrire(a){ try { localStorage.setItem(BON_QUEUE, JSON.stringify(a)); } catch (e) { console.warn('[bon signé] stockage local plein', e); } }
+// Après une clôture réussie : met le bon en file et l'envoie
+function bonEnvoyer(snap){
+  _sigCourante = null;
+  if (!snap) return;
+  bonFileEcrire(bonFileLire().filter(x => String(x.sid) !== String(snap.sid)).concat([snap]));
+  bonVider();
+}
+function _gpDate(iso, sep){
+  const d = new Date(iso);
+  const z = d.toLocaleString('sv-SE', { timeZone: 'America/Guadeloupe' }).replace(/\D/g, '');
+  return sep ? z.slice(0, 8) + '_' + z.slice(8, 14) : z;
+}
+function _gpTexte(iso){
+  return new Date(iso).toLocaleString('fr-FR', { timeZone: 'America/Guadeloupe', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', ' à');
+}
+// Les polices standard du PDF ne savent écrire que le jeu WinAnsi
+function _winAnsi(t){
+  const ok = '€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ';
+  return String(t == null ? '' : t).replace(/[\r\n\t]+/g, ' ').replace(/[→←]/g, '-')
+    .split('').map(c => { const n = c.charCodeAt(0); return (n >= 32 && n <= 126) || (n >= 160 && n <= 255) || ok.indexOf(c) >= 0 ? c : '?'; }).join('');
+}
+async function _sha256(txt){
+  try {
+    const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
+    return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
+  } catch (e) { return ''; }
+}
+// Mise en page reprise du BON DE LIVRAISON Image (logo, cadre, tableau, signature client)
+var VENDEUR_CODES = { 'Fabrice': '01', 'Fred': '04', 'Frédéric': '04', 'Fritz': '05', 'Nicolas': '06' };
+async function bonPdf(s){
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const empreinte = await _sha256(JSON.stringify(s));
+  const doc = await PDFDocument.create();
+  doc.setTitle('Bon de livraison signé ' + _winAnsi(s.numero));
+  doc.setAuthor('Réseaux Plus Guadeloupe'); doc.setCreator('Portail Scan'); doc.setCreationDate(new Date(s.tSign));
+  const fR = await doc.embedFont(StandardFonts.Helvetica), fB = await doc.embedFont(StandardFonts.HelveticaBold);
+  const fC = await doc.embedFont(StandardFonts.Courier), fCB = await doc.embedFont(StandardFonts.CourierBold);
+  let logo = null;
+  try { const im = document.querySelector('img[src^="data:image/png"]'); if (im) logo = await doc.embedPng(im.src); } catch (e) { logo = null; }
+  const sigImg = await doc.embedPng(s.png);
+  const W = 595.28, H = 841.89, M = 28;
+  const NOIR = rgb(0, 0, 0), BLEU = rgb(0.2, 0.25, 0.55), GRIS = rgb(0.4, 0.4, 0.45), ROUGE = rgb(0.75, 0.1, 0.1), ORANGE = rgb(0.76, 0.25, 0.05);
+  let page;
+  const txt = (t, x, y, size, font, color) => page.drawText(_winAnsi(t), { x: x, y: y, size: size, font: font || fR, color: color || NOIR });
+  const larg = (t, font, size) => font.widthOfTextAtSize(_winAnsi(t), size);
+  const coupe = (t, font, size, max) => { t = _winAnsi(t); if (font.widthOfTextAtSize(t, size) <= max) return t; while (t.length > 1 && font.widthOfTextAtSize(t + '.', size) > max) t = t.slice(0, -1); return t + '.'; };
+  const droite = (t, xd, y, size, font, color) => txt(t, xd - larg(String(t), font, size), y, size, font, color);
+  const cadre = (x, yTop, w, h, r) => page.drawSvgPath('M ' + r + ',0 H ' + (w - r) + ' Q ' + w + ',0 ' + w + ',' + r + ' V ' + (h - r) + ' Q ' + w + ',' + h + ' ' + (w - r) + ',' + h + ' H ' + r + ' Q 0,' + h + ' 0,' + (h - r) + ' V ' + r + ' Q 0,0 ' + r + ',0 Z',
+    { x: x, y: yTop, borderColor: NOIR, borderWidth: 1 });
+  const ligneH = (x1, x2, y, ep) => page.drawLine({ start: { x: x1, y: y }, end: { x: x2, y: y }, thickness: ep || 0.8, color: NOIR });
+  const ligneV = (x, y1, y2) => page.drawLine({ start: { x: x, y: y1 }, end: { x: x, y: y2 }, thickness: 0.8, color: NOIR });
+  const reste = s.lignes.reduce((a, l) => a + Math.max(0, l.att - l.liv), 0);
+  const typeLiv = s.kind === 'partielle' ? 'Livraison partielle - le reste fera l\'objet d\'un nouveau BL'
+    : reste > 0 ? 'Livraison avec écart - BL soldé sans le reste' : 'Livraison complète';
+  const vend = s.vendeur ? ((VENDEUR_CODES[s.vendeur] ? VENDEUR_CODES[s.vendeur] + ' - ' : '') + s.vendeur) : '';
+  // Colonnes du tableau
+  const X = [M, M + 76, M + 300, M + 352, M + 404, M + 452, W - M];
+  const TETES = ['Référence', 'Désignation', 'Qté BL', 'Livrée', 'Reste', 'Observations'];
+  const T_HAUT = H - 262, T_BAS_DER = 262, T_BAS = 70, PAS = 14;
+  const entete = () => {
+    page = doc.addPage([W, H]);
+    if (logo) { const h = 52, w = logo.width * h / logo.height; page.drawImage(logo, { x: M, y: H - 22 - h, width: w, height: h }); }
+    else txt('RESEAUX PLUS', M, H - 55, 26, fB, BLEU);
+    const xa = M + 215;
+    txt('15 LOT VIA VERDE ZAC DE HOUELBOURG BP 2069 97192 JARRY CEDEX', xa, H - 38, 8.6, fB);
+    txt('Tél. : 0590380495  -  Fax : 0590380494  -  E-mail : contact@reseauxplus.com', xa, H - 51, 8, fR);
+    txt('SARL au capital de 56.500 - N° Siret 44225884400012 - Code NACE 524N - N° TVA Intracom. - RCS', xa, H - 62, 6.2, fR);
+    ligneH(M, W - M, H - 80, 1.5);
+    // Cadre BON DE LIVRAISON
+    cadre(M, H - 98, 262, 118, 9);
+    const t = 'BON DE LIVRAISON';
+    txt(t, M + 131 - larg(t, fB, 14) / 2, H - 117, 14, fB);
+    ligneH(M, M + 262, H - 124);
+    let y = H - 141;
+    const champ = (lib, val, gras) => { txt(lib, M + 8, y, 9.5, fR); txt(':', M + 62, y, 9.5, fR); txt(coupe(val || '', gras ? fCB : fC, 10, 185), M + 72, y, 10, gras ? fCB : fC); y -= 13.5; };
+    champ('Référence', s.numero, true);
+    champ('Date', _gpTexte(s.tSign).slice(0, 10));
+    champ('Vendeur', vend);
+    champ('Magasinier', s.magasinier + (s.reprisPar && s.reprisPar !== s.magasinier ? ' (repris par ' + s.reprisPar + ')' : ''));
+    if (s.blRacine) champ('Suite du BL', s.blRacine);
+    // Client
+    txt(coupe(s.client || '', fCB, 11, W - M - 330), 330, H - 150, 11, fCB);
+    if (s.contact) txt(coupe('Contact : ' + s.contact, fC, 9.5, W - M - 330), 330, H - 165, 9.5, fC);
+    txt('Type :', M, H - 240, 9.5, fB);
+    txt(typeLiv, M + 36, H - 240, 9.5, fC, s.kind === 'partielle' || reste > 0 ? ORANGE : NOIR);
+  };
+  const tableau = (bas) => {
+    cadre(M, T_HAUT, W - 2 * M, T_HAUT - bas, 9);
+    TETES.forEach((h, i) => {
+      const x0 = X[i], x1 = X[i + 1];
+      txt(h, x0 + (x1 - x0) / 2 - larg(h, fB, 9) / 2, T_HAUT - 16, 9, fB);
+      if (i > 0) ligneV(x0, T_HAUT, bas);
+    });
+    ligneH(M, W - M, T_HAUT - 24);
+  };
+  // Pagination des lignes
+  const parPageDer = Math.floor((T_HAUT - 30 - T_BAS_DER) / PAS);
+  const parPage = Math.floor((T_HAUT - 30 - T_BAS) / PAS);
+  const paquets = []; let i = 0;
+  while (s.lignes.length - i > parPageDer) { paquets.push(s.lignes.slice(i, i + parPage)); i += parPage; }
+  paquets.push(s.lignes.slice(i));
+  paquets.forEach((lot, p) => {
+    const derniere = p === paquets.length - 1;
+    entete();
+    const bas = derniere ? T_BAS_DER : T_BAS;
+    tableau(bas);
+    let y = T_HAUT - 40;
+    lot.forEach(l => {
+      const r = Math.max(0, l.att - l.liv);
+      txt(coupe(l.ref, fC, 9, X[1] - X[0] - 8), X[0] + 5, y, 9, fC);
+      txt(coupe(l.des, fC, 9, X[2] - X[1] - 8), X[1] + 5, y, 9, fC);
+      droite(l.att.toFixed(2).replace('.', ','), X[3] - 6, y, 9, fC);
+      droite(l.liv.toFixed(2).replace('.', ','), X[4] - 6, y, 9, fCB, l.liv !== l.att ? ORANGE : NOIR);
+      droite(r ? r.toFixed(2).replace('.', ',') : '-', X[5] - 6, y, 9, r ? fCB : fC, r ? ORANGE : GRIS);
+      if (r) txt('Reste à livrer', X[5] + 5, y, 8, fR, ORANGE);
+      y -= PAS;
+    });
+    if (!derniere) { txt('Suite page suivante...', W - M - 110, T_BAS - 14, 8.5, fR, GRIS); return; }
+    // Total
+    const totL = s.lignes.reduce((a, l) => a + l.liv, 0);
+    txt(s.lignes.length + ' référence(s) - ' + totL + ' unité(s) livrée(s)' + (reste ? ' - ' + reste + ' unité(s) restant à livrer' : ''), M + 4, T_BAS_DER - 13, 8.5, fB);
+    // Réserves
+    let yr = T_BAS_DER - 31;
+    txt('Réserves du client :', M, yr, 9.5, fB);
+    const res = s.reserves ? _winAnsi(s.reserves) : 'Aucune réserve';
+    const mots = res.split(' '); let lg = ''; const lignesRes = [];
+    mots.forEach(m => { const t = lg ? lg + ' ' + m : m; if (fC.widthOfTextAtSize(t, 9.5) > W - 2 * M - 110) { lignesRes.push(lg); lg = m; } else lg = t; });
+    if (lg) lignesRes.push(lg);
+    lignesRes.slice(0, 3).forEach(t => { txt(t, M + 108, yr, 9.5, s.reserves ? fCB : fC, s.reserves ? ROUGE : NOIR); yr -= 12; });
+    txt('Le client reconnaît avoir reçu les articles et quantités de la colonne « Livrée »' + (s.reserves ? ', sous les réserves ci-dessus.' : ', sans réserve.'), M, T_BAS_DER - 70, 8.5, fR);
+    // Zone signature (comme le BL Image : CERTIFIÉ CONFORME / SIGNATURE CLIENT)
+    const zh = 116, zt = T_BAS_DER - 80;
+    cadre(M, zt, W - 2 * M, zh, 9);
+    ligneV(M + 200, zt, zt - zh);
+    txt('CERTIFIÉ CONFORME', M + 8, zt - 16, 9.5, fC);
+    txt('Livré par : ' + (s.magasinier || ''), M + 8, zt - 34, 9, fR);
+    txt('Réseaux Plus Guadeloupe', M + 8, zt - 47, 9, fR, GRIS);
+    txt('SIGNATURE CLIENT :', M + 210, zt - 16, 9.5, fC);
+    const k = Math.min(200 / sigImg.width, 80 / sigImg.height);
+    page.drawImage(sigImg, { x: M + 215, y: zt - zh + 8, width: sigImg.width * k, height: sigImg.height * k });
+    const xs = M + 425;
+    txt('Nom : ' + coupe(s.nom, fB, 8.5, W - M - xs - 30), xs, zt - 40, 8.5, fB);
+    txt('Motif : Réception marchandise', xs, zt - 54, 7.5, fR);
+    txt('Date : ' + _gpTexte(s.tSign).replace(' à ', ' '), xs, zt - 66, 7.5, fR);
+    txt('(UTC-04:00)', xs, zt - 76, 7.5, fR);
+  });
+  // Pied de page (toutes les pages)
+  const pages = doc.getPages();
+  pages.forEach((pg, n) => {
+    const t1 = 'Nous nous réservons la propriété des matériels et fournitures jusqu\'au paiement complet du prix par l\'acheteur. Notre réserve de propriété porte aussi bien sur les';
+    const t2 = 'marchandises que sur leur prix si elles ont déjà été revendues (Loi N° 80.335 du 12 Mai 1980).';
+    pg.drawText(_winAnsi(t1), { x: M, y: 46, size: 6.3, font: fR, color: NOIR });
+    pg.drawText(_winAnsi(t2), { x: M, y: 38, size: 6.3, font: fR, color: NOIR });
+    pg.drawLine({ start: { x: M, y: 32 }, end: { x: W - M, y: 32 }, thickness: 0.8, color: NOIR });
+    pg.drawText(_winAnsi('Bon signé sur le Portail Scan - session ' + s.sid + ' - empreinte SHA-256 : ' + (empreinte || 'n/d')), { x: M, y: 22, size: 6, font: fR, color: GRIS });
+    pg.drawText(_winAnsi('Appareil : ' + s.appareil.slice(0, 130)), { x: M, y: 14, size: 5.5, font: fR, color: GRIS });
+    const pt = 'Page ' + (n + 1) + '/' + pages.length;
+    pg.drawText(pt, { x: W - M - fR.widthOfTextAtSize(pt, 7), y: 22, size: 7, font: fR, color: GRIS });
+  });
+  return await doc.save();
+}
+function _b64(bytes){
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+function bonNomFichier(s){
+  return 'BL_signe_' + String(s.numero || s.sid).replace(/[^\w-]/g, '') + '_' + _gpDate(s.tSign, true) + '.pdf';
+}
+// Envoie les bons en attente, un par un (pas de keepalive : le corps dépasse 64 Ko)
+async function bonVider(){
+  const url = (CONFIG.FLOWS.SIGNATURE_LIVRAISON || '').trim();
+  if (_bonEnvoiEnCours || !url) return;
+  const file = bonFileLire();
+  if (!file.length) return;
+  if (typeof PDFLib === 'undefined') { showToast('⏳ Bon signé gardé sur l\'appareil — il partira au retour du réseau'); return; }
+  _bonEnvoiEnCours = true;
+  try {
+    for (const s of file) {
+      try {
+        const b64 = _b64(await bonPdf(s));
+        await fetch(url, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ ID_Session: parseInt(s.sid, 10), Fichier_Nom: bonNomFichier(s), Fichier_B64: b64, Signataire: s.nom || '', Reserves: s.reserves || '', _token: CONFIG.TOKEN }) });
+        bonFileEcrire(bonFileLire().filter(x => !(String(x.sid) === String(s.sid) && x.tSign === s.tSign)));
+        showToast('✍️ Bon de livraison signé envoyé — BL ' + s.numero);
+      } catch (e) {
+        console.warn('[bon signé]', s.numero, e);
+        showToast('⏳ Bon signé du BL ' + s.numero + ' gardé sur l\'appareil — nouvel essai plus tard');
+      }
+    }
+  } finally { _bonEnvoiEnCours = false; }
+}
+// « Prendre en charge et livrer » : pas de lignes en mémoire → on les relit
+function bonDepuisSession(sess, extra){
+  const sig = signaturePour(sess.id);
+  _sigCourante = null;
+  if (!sig) return;
+  fetch(CONFIG.FLOWS.LISTE_LIGNES).then(r => r.json()).then(data => {
+    const all = Array.isArray(data) ? data : (data.value || []);
+    const lignes = all.filter(l => String(lineSessionId(l)) === String(sess.id))
+      .map(l => ({ reference: l.Reference_Article || '', designation: l.Designation || '', attendue: num(l.Quantite_Attendue), scannee: num(l.Quantite_Scannee) }));
+    _sigCourante = sig;
+    bonEnvoyer(bonSnapshot(sess, lignes, 'normale', extra));
+  }).catch(() => {
+    _sigCourante = sig;
+    bonEnvoyer(bonSnapshot(sess, [], 'normale', extra));
+  });
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') bonVider(); });
+setTimeout(bonVider, 2500);
 
 // ═══════════════════════════════════════════════════════════════════
 // RÉCEPTION CONTENEUR — contrôle des arrivages au doigt (sans caméra)
