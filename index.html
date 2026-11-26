@@ -3103,7 +3103,7 @@ function prendreEnChargeEtLivrer(id, numero){
   const extra = {};
   if (choiceValue(sess.Magasinier) !== selectedMagasinier) extra.Repris_Par = selectedMagasinier;
   const sessB = buildSession(sess);
-  if (exigerSignature(sessB, () => prendreEnChargeEtLivrerSigne(id, numero, sessB, extra))) return;
+  if (exigerSignature(sessB, natureBon(sessB, 'normale', []), () => prendreEnChargeEtLivrerSigne(id, numero, sessB, extra))) return;
   prendreEnChargeEtLivrerSigne(id, numero, sessB, extra);
 }
 function prendreEnChargeEtLivrerSigne(id, numero, sessB, extra){
@@ -3384,7 +3384,7 @@ elBtnCloturer.addEventListener('click', () => {
   if (!confirm(msgConfirm)) return;
   }
   // Signature du client (livraison) : relance ce même bouton une fois signée
-  if (exigerSignature(activeSession, () => { if (estTypeLivraison(activeSession.type)) _clotureValidee = true; elBtnCloturer.click(); })) return;
+  if (exigerSignature(activeSession, natureBon(activeSession, 'normale', activeLines), () => { if (estTypeLivraison(activeSession.type)) _clotureValidee = true; elBtnCloturer.click(); })) return;
   const _bon = bonSnapshot(activeSession, activeLines, 'normale', reprisPayloadExtra());
 
   elBtnCloturer.disabled = true;
@@ -3445,7 +3445,7 @@ elBtnCloturePartielle.addEventListener('click', () => {
     "Ce qui a été scanné part en stock maintenant. Un nouveau BL sera créé automatiquement pour le reste :\n\n" +
     detail
   )) return;
-  if (exigerSignature(activeSession, () => { _partielleValidee = true; elBtnCloturePartielle.click(); })) return;
+  if (exigerSignature(activeSession, 'partielle', () => { _partielleValidee = true; elBtnCloturePartielle.click(); })) return;
   const _bon = bonSnapshot(activeSession, activeLines, 'partielle', reprisPayloadExtra());
 
   elBtnCloturePartielle.disabled = true;
@@ -3668,14 +3668,25 @@ function demanderSignature(numeroBL, nomParDefaut, callback){
 var _sigCourante = null;                 // { sid, nom, reserves, signature, t }
 var BON_QUEUE = 'rp_scan_bons_signes';
 var _bonEnvoiEnCours = false;
-function signatureRequise(sess){
-  return !!(CONFIG.FLOWS.SIGNATURE_LIVRAISON || '').trim() && !!sess && estTypeLivraison(sess.type)
+// Le BL Image est signé au comptoir (tablette vendeur → BL_Signés → Docuware).
+// Le magasin ne fait signer QUE quand la remise diffère de ce BL :
+//   'partielle' : « Clôturer reste à livrer » (le client emporte une partie)
+//   'solde'     : clôture d'un BL de suite (dernière livraison du reste)
+//   'ecart'     : clôture définitive alors qu'il manque des articles
+function natureBon(sess, kind, lignes){
+  if (kind === 'partielle') return 'partielle';
+  if (sess && String(sess.blRacine || '').trim()) return 'solde';
+  if ((lignes || []).some(l => (Number(l.scannee) || 0) < (Number(l.attendue) || 0))) return 'ecart';
+  return '';
+}
+function signatureRequise(sess, nature){
+  return !!nature && !!(CONFIG.FLOWS.SIGNATURE_LIVRAISON || '').trim() && !!sess && estTypeLivraison(sess.type)
     && !String(sess.numero || '').toUpperCase().startsWith('PREP-BC-');
 }
 function signaturePour(sid){ return _sigCourante && String(_sigCourante.sid) === String(sid) ? _sigCourante : null; }
 // Signature manquante → ouvre l'écran et renvoie true (l'appelant s'arrête ; relancer() est rappelé après signature)
-function exigerSignature(sess, relancer){
-  if (!signatureRequise(sess) || signaturePour(sess.id)) return false;
+function exigerSignature(sess, nature, relancer){
+  if (!signatureRequise(sess, nature) || signaturePour(sess.id)) return false;
   demanderSignature(sess.numero, sess.contact || '', sig => {
     _sigCourante = Object.assign({ sid: sess.id, t: new Date().toISOString() }, sig);
     relancer();
@@ -3685,9 +3696,10 @@ function exigerSignature(sess, relancer){
 function bonSnapshot(sess, lignes, kind, extra){
   const sig = signaturePour(sess.id);
   if (!sig) return null;
+  const nature = natureBon(sess, kind, lignes);
   return {
     sid: sess.id, numero: String(sess.numero || ''), client: sess.client || '', vendeur: sess.vendeur || '',
-    magasinier: sess.magasinier || selectedMagasinier || '', reprisPar: (extra && extra.Repris_Par) || '', kind: kind, contact: sess.contact || '', blRacine: sess.blRacine || '',
+    magasinier: sess.magasinier || selectedMagasinier || '', reprisPar: (extra && extra.Repris_Par) || '', kind: kind, nature: nature || 'partielle', contact: sess.contact || '', blRacine: sess.blRacine || '',
     lignes: (lignes || []).map(l => ({ ref: l.reference || '', des: l.designation || '', att: Number(l.attendue) || 0, liv: Number(l.scannee) || 0 })),
     nom: sig.nom, reserves: sig.reserves || '', png: sig.signature, tSign: sig.t,
     appareil: (navigator.userAgent || '').replace(/\s+/g, ' ').slice(0, 160)
@@ -3728,7 +3740,7 @@ async function bonPdf(s){
   const { PDFDocument, StandardFonts, rgb } = PDFLib;
   const empreinte = await _sha256(JSON.stringify(s));
   const doc = await PDFDocument.create();
-  doc.setTitle('Bon de livraison signé ' + _winAnsi(s.numero));
+  doc.setTitle('Bon de livraison ' + (s.nature || '') + ' ' + _winAnsi(s.numero));
   doc.setAuthor('Réseaux Plus Guadeloupe'); doc.setCreator('Portail Scan'); doc.setCreationDate(new Date(s.tSign));
   const fR = await doc.embedFont(StandardFonts.Helvetica), fB = await doc.embedFont(StandardFonts.HelveticaBold);
   const fC = await doc.embedFont(StandardFonts.Courier), fCB = await doc.embedFont(StandardFonts.CourierBold);
@@ -3747,8 +3759,11 @@ async function bonPdf(s){
   const ligneH = (x1, x2, y, ep) => page.drawLine({ start: { x: x1, y: y }, end: { x: x2, y: y }, thickness: ep || 0.8, color: NOIR });
   const ligneV = (x, y1, y2) => page.drawLine({ start: { x: x, y: y1 }, end: { x: x, y: y2 }, thickness: 0.8, color: NOIR });
   const reste = s.lignes.reduce((a, l) => a + Math.max(0, l.att - l.liv), 0);
+  const surplus = s.lignes.some(l => l.liv > l.att);
   const typeLiv = s.kind === 'partielle' ? 'Livraison partielle - le reste fera l\'objet d\'un nouveau BL'
-    : reste > 0 ? 'Livraison avec écart - BL soldé sans le reste' : 'Livraison complète';
+    : reste > 0 ? 'Livraison avec écart - BL soldé sans le reste'
+    : s.nature === 'solde' ? 'Livraison du solde - le BL est entièrement livré'
+    : surplus ? 'Livraison avec écart - quantité livrée supérieure au BL' : 'Livraison complète';
   const vend = s.vendeur ? ((VENDEUR_CODES[s.vendeur] ? VENDEUR_CODES[s.vendeur] + ' - ' : '') + s.vendeur) : '';
   // Colonnes du tableau
   const X = [M, M + 76, M + 300, M + 352, M + 404, M + 452, W - M];
@@ -3765,8 +3780,9 @@ async function bonPdf(s){
     ligneH(M, W - M, H - 80, 1.5);
     // Cadre BON DE LIVRAISON
     cadre(M, H - 98, 262, 118, 9);
-    const t = 'BON DE LIVRAISON';
-    txt(t, M + 131 - larg(t, fB, 14) / 2, H - 117, 14, fB);
+    const t = s.nature === 'solde' ? 'BON DE LIVRAISON - SOLDE' : s.nature === 'ecart' ? 'BON DE LIVRAISON - ÉCART' : 'BON DE LIVRAISON PARTIELLE';
+    const tz = t.length > 20 ? 12 : 14;
+    txt(t, M + 131 - larg(t, fB, tz) / 2, H - 117, tz, fB);
     ligneH(M, M + 262, H - 124);
     let y = H - 141;
     const champ = (lib, val, gras) => { txt(lib, M + 8, y, 9.5, fR); txt(':', M + 62, y, 9.5, fR); txt(coupe(val || '', gras ? fCB : fC, 10, 185), M + 72, y, 10, gras ? fCB : fC); y -= 13.5; };
@@ -3778,8 +3794,9 @@ async function bonPdf(s){
     // Client
     txt(coupe(s.client || '', fCB, 11, W - M - 330), 330, H - 150, 11, fCB);
     if (s.contact) txt(coupe('Contact : ' + s.contact, fC, 9.5, W - M - 330), 330, H - 165, 9.5, fC);
+    txt('Ce bon atteste uniquement les quantités remises ce jour au magasin. Il complète le BL ' + (s.blRacine || s.numero) + ' signé au comptoir, qui reste le document de référence.', M, H - 254, 7.5, fR, GRIS);
     txt('Type :', M, H - 240, 9.5, fB);
-    txt(typeLiv, M + 36, H - 240, 9.5, fC, s.kind === 'partielle' || reste > 0 ? ORANGE : NOIR);
+    txt(typeLiv, M + 36, H - 240, 9.5, fC, s.kind === 'partielle' || reste > 0 || surplus ? ORANGE : NOIR);
   };
   const tableau = (bas) => {
     cadre(M, T_HAUT, W - 2 * M, T_HAUT - bas, 9);
@@ -3810,6 +3827,7 @@ async function bonPdf(s){
       droite(l.liv.toFixed(2).replace('.', ','), X[4] - 6, y, 9, fCB, l.liv !== l.att ? ORANGE : NOIR);
       droite(r ? r.toFixed(2).replace('.', ',') : '-', X[5] - 6, y, 9, r ? fCB : fC, r ? ORANGE : GRIS);
       if (r) txt('Reste à livrer', X[5] + 5, y, 8, fR, ORANGE);
+      else if (l.liv > l.att) txt('+' + (l.liv - l.att) + ' hors BL', X[5] + 5, y, 8, fR, ROUGE);
       y -= PAS;
     });
     if (!derniere) { txt('Suite page suivante...', W - M - 110, T_BAS - 14, 8.5, fR, GRIS); return; }
@@ -3862,7 +3880,7 @@ function _b64(bytes){
   return btoa(bin);
 }
 function bonNomFichier(s){
-  return 'BL_signe_' + String(s.numero || s.sid).replace(/[^\w-]/g, '') + '_' + _gpDate(s.tSign, true) + '.pdf';
+  return 'Bon_livraison_' + (s.nature || 'partielle') + '_' + String(s.numero || s.sid).replace(/[^\w-]/g, '') + '_' + _gpDate(s.tSign, true) + '.pdf';
 }
 // Envoie les bons en attente, un par un (pas de keepalive : le corps dépasse 64 Ko)
 async function bonVider(){
