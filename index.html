@@ -1729,7 +1729,7 @@ function apercuBL(id){
     + '<div style="font-size:13px;color:#475569;margin-bottom:10px">' + esc(sess.Client || '') + (choiceValue(sess.Vendeur_Emetteur) ? ' · ' + esc(choiceValue(sess.Vendeur_Emetteur)) : '') + '</div>';
   ov.innerHTML = '<div style="background:#fff;width:100%;max-width:560px;max-height:85vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px">' + entete + '<div style="color:#64748b;font-size:13px;padding:14px 0">Chargement des articles…</div></div>';
   ov.style.display = 'flex';
-  fetch(CONFIG.FLOWS.LISTE_LIGNES).then(r => r.json()).then(data => {
+  fetch(urlLignes([id])).then(r => r.json()).then(data => {
     const all = Array.isArray(data) ? data : (data.value || []);
     const lignes = all.filter(l => String(lineSessionId(l)) === String(id));
     const corps = lignes.length
@@ -1817,7 +1817,7 @@ function priseEnChargeSiBesoin(idSession){
   if (!sess || !sess._priseAFaire) return Promise.resolve();
   if (idSession != null && String(idSession) !== String(sess.id)) return Promise.resolve();
   if (_prisePromise) return _prisePromise;
-  _prisePromise = fetch(CONFIG.FLOWS.LISTE_SESSIONS).then(r => r.json()).catch(() => null).then(data => {
+  _prisePromise = fetch(urlSession(sess.id)).then(r => r.json()).catch(() => null).then(data => {
     const all = data ? (Array.isArray(data) ? data : (data.value || [])) : [];
     const sp = all.find(x => String(x.ID) === String(sess.id));
     const st = sp ? choiceValue(sp.Statut) : 'BL Émis', mag = sp ? choiceValue(sp.Magasinier) : '';
@@ -1830,7 +1830,7 @@ function priseEnChargeSiBesoin(idSession){
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ ID_Session: parseInt(sess.id, 10), Magasinier: selectedMagasinier, _token: CONFIG.TOKEN })
     });
-  }).then(() => new Promise(r => setTimeout(r, 1500))) // laisser le flux écrire le statut avant la suite
+  }).then(() => new Promise(r => setTimeout(r, 800))) // marge pour que le flux (≈0,5 s) ait écrit le statut — avant : 1,5 s
     .then(() => { sess._priseAFaire = false; sessionsCache = sessionsCache.filter(x => String(x.ID) !== String(sess.id)); showToast('BL pris en charge'); })
     .catch(e => {
       if (e && e.message === 'pris-par-un-autre') {
@@ -1995,9 +1995,13 @@ function fetchScanSessions(){
   elScanPickerList.innerHTML = '';
   // Les lignes servent à afficher l'avancement de chaque BL (facultatif :
   // si elles ne se chargent pas, la liste s'affiche quand même).
-  const lignesP = fetch(CONFIG.FLOWS.LISTE_LIGNES).then(r => r.json())
-    .then(d => Array.isArray(d) ? d : (d.value || [])).catch(() => null);
-  return Promise.all([fetch(CONFIG.FLOWS.LISTE_SESSIONS).then(r => r.json()), lignesP])
+  const sessP = fetch(CONFIG.FLOWS.LISTE_SESSIONS).then(r => r.json());
+  const lignesP = sessP.then(d => {
+    const tout = Array.isArray(d) ? d : (d.value || []);
+    const ouvertes = tout.filter(x => !/termin|écart|ecart|partiel|annul|contr[ôo]l/i.test(choiceValue(x.Statut) || '')).map(x => x.ID);
+    return fetchLignesDe(ouvertes);
+  }).catch(() => null);
+  return Promise.all([sessP, lignesP])
     .then(([data, lignes]) => {
       pickerLignesCache = lignes;
       const all0 = Array.isArray(data) ? data : (data.value || []);
@@ -2188,12 +2192,15 @@ function reprisPayloadExtra(){
 // d'écran et devoir s'en souvenir en scannant.
 function chargerHistoriqueChaine(blRacine, sessionActiveId){
   if (!blRacine) return Promise.resolve(null);
-  return Promise.all([
-    fetch(CONFIG.FLOWS.LISTE_SESSIONS).then(r => r.json()),
-    fetch(CONFIG.FLOWS.LISTE_LIGNES).then(r => r.json())
-  ]).then(([data, data2]) => {
+  return fetch(CONFIG.FLOWS.LISTE_SESSIONS).then(r => r.json()).then(data => {
     const all = Array.isArray(data) ? data : (data.value || []);
-    const allLignes = Array.isArray(data2) ? data2 : (data2.value || []);
+    // Lignes des seules sessions de la même chaîne (même BL racine)
+    const racinesDe = x => { let c = x, k = 0; while (c && c.BL_Racine && k++ < 20) { const p = all.find(z => String(z.Numero_BL) === String(c.BL_Racine)); if (!p || p === c) return String(c.BL_Racine); c = p; } return String(c && c.Numero_BL || ''); };
+    const cible = racinesDe(all.find(s => String(s.Numero_BL) === String(blRacine)) || { Numero_BL: blRacine });
+    const ids = all.filter(s => racinesDe(s) === cible).map(s => s.ID);
+    return fetchLignesDe(ids).then(allLignes => [data, allLignes]);
+  }).then(([data, allLignes]) => {
+    const all = Array.isArray(data) ? data : (data.value || []);
     // On regroupe par vraie racine plutôt que de remonter un seul parent — le
     // flow peut faire pointer chaque report directement vers la racine
     // d'origine (pas vers l'étape précédente), auquel cas un remontage
@@ -2254,6 +2261,24 @@ function afficherBandeauOrigine(blRacine, sessionActiveId){
   }).catch(() => { banner.textContent = '📋 Suite du BL ' + blRacine + ' — impossible de charger le détail (réessaie).'; });
 }
 
+// ── Lecture ciblée des lignes / sessions (perf) ──
+// Les flux Scan_ListeLignes / Scan_ListeSessions acceptent un filtre optionnel
+// (&sessions=12,15 / &id=12). Tant qu'un flux ne le gère pas, il renvoie tout :
+// le portail filtre de toute façon côté téléphone → aucune régression possible.
+function urlLignes(ids){
+  const l = [...new Set((ids || []).filter(x => x != null && String(x).trim() !== '').map(x => String(parseInt(x, 10)).replace('NaN', '')).filter(Boolean))];
+  return CONFIG.FLOWS.LISTE_LIGNES + (l.length ? '&sessions=' + l.join(',') : '');
+}
+function urlSession(id){ return CONFIG.FLOWS.LISTE_SESSIONS + '&id=' + encodeURIComponent(parseInt(id, 10)); }
+// Lignes de plusieurs sessions, par paquets de 40 (longueur d'URL)
+function fetchLignesDe(ids){
+  const l = [...new Set((ids || []).map(x => String(x)))];
+  if (!l.length) return Promise.resolve([]);
+  const paquets = []; for (let i = 0; i < l.length; i += 40) paquets.push(l.slice(i, i + 40));
+  return Promise.all(paquets.map(p => fetch(urlLignes(p)).then(r => r.json()).then(d => Array.isArray(d) ? d : (d.value || []))))
+    .then(rs => { const vus = new Set(); return [].concat(...rs).filter(x => { const k = x.ID || x.Id; if (k == null) return true; if (vus.has(k)) return false; vus.add(k); return true; }); });
+}
+
 function lineSessionId(l){
   if (l.Session_ScanId != null) return l.Session_ScanId;
   if (l.Session_Scan && typeof l.Session_Scan === 'object')
@@ -2262,7 +2287,7 @@ function lineSessionId(l){
 }
 
 function resumeLines(){
-  return fetch(CONFIG.FLOWS.LISTE_LIGNES)
+  return fetch(urlLignes([activeSession.id]))
     .then(r => r.json())
     .then(data => {
       const all = Array.isArray(data) ? data : (data.value || []);
@@ -3719,12 +3744,9 @@ async function bonEnvoyer(snap){
 // à partir des sessions de la même chaîne (BL_Racine) et de leurs lignes scannées.
 async function bonHistorique(snap){
   if (!String(snap.blRacine || '').trim()) return null;
-  const [rs, rl] = await Promise.all([
-    fetch(CONFIG.FLOWS.LISTE_SESSIONS).then(r => r.json()),
-    fetch(CONFIG.FLOWS.LISTE_LIGNES).then(r => r.json())
-  ]);
+  const rs = await fetch(CONFIG.FLOWS.LISTE_SESSIONS).then(r => r.json());
   const sess = Array.isArray(rs) ? rs : (rs.value || []);
-  const lig = Array.isArray(rl) ? rl : (rl.value || []);
+  let lig = null;
   const bas = v => String(v == null ? '' : v).trim().toLowerCase();
   const parNum = n => sess.find(x => bas(x.Numero_BL) === bas(n));
   const racineDe = x => {
@@ -3743,6 +3765,7 @@ async function bonHistorique(snap){
   const root = parNum(racine);
   if (!root) return null;
   const fam = sess.filter(x => bas(racineDe(x)) === bas(racine));
+  lig = await fetchLignesDe(fam.map(x => x.ID).concat([snap.sid]));
   const lignesDe = id => lig.filter(l => String(lineSessionId(l)) === String(id));
   const cle = (r, d) => bas(String(r || '').trim() || d);
   const out = [], idx = {};
@@ -3974,7 +3997,7 @@ function bonDepuisSession(sess, extra){
   const sig = signaturePour(sess.id);
   _sigCourante = null;
   if (!sig) return;
-  fetch(CONFIG.FLOWS.LISTE_LIGNES).then(r => r.json()).then(data => {
+  fetch(urlLignes([sess.id])).then(r => r.json()).then(data => {
     const all = Array.isArray(data) ? data : (data.value || []);
     const lignes = all.filter(l => String(lineSessionId(l)) === String(sess.id))
       .map(l => ({ reference: l.Reference_Article || '', designation: l.Designation || '', attendue: num(l.Quantite_Attendue), scannee: num(l.Quantite_Scannee) }));
@@ -4065,7 +4088,7 @@ function rxApercu(id){
     + (st === 'Contrôlée' ? ' · ✓ contrôlée' + (mag ? ' par ' + rxEsc(mag) : '') : st === 'En cours de scan' ? ' · 🔄 ' + rxEsc(mag || 'en cours') : ' · à prendre') + '</div></div><button class="rx-sh-x" data-apx="1">✕</button></div>';
   ov.innerHTML = '<div class="rx-sheet">' + tete + '<div class="rx-vide" style="padding:20px">Chargement des articles…</div></div>';
   ov.style.display = 'flex';
-  fetch(CONFIG.FLOWS.LISTE_LIGNES).then(r => r.json()).then(data => {
+  fetch(urlLignes([id])).then(r => r.json()).then(data => {
     const all = Array.isArray(data) ? data : (data.value || []);
     const L = all.filter(l => String(lineSessionId(l)) === String(id));
     const compte = L.some(l => rxNum(l.Quantite_Scannee) || rxNum(l.Quantite_Abimee));
@@ -4126,7 +4149,7 @@ function rxOuvrir(s){
   ov.style.display = 'flex'; document.body.style.overflow = 'hidden';
   if (typeof wakeOn === 'function') wakeOn();
   rxRender();
-  fetch(CONFIG.FLOWS.LISTE_LIGNES).then(r => r.json()).then(data => {
+  fetch(urlLignes([s.ID])).then(r => r.json()).then(data => {
     const all = Array.isArray(data) ? data : (data.value || []);
     const mine = all.filter(l => String(lineSessionId(l)) === String(s.ID));
     RXS.lines = mine.map(l => ({ cle: l.Title || ('RX-' + s.ID + '-id' + (l.ID || l.Id)), ref: (l.Reference_Article || '').toString().trim(), des: l.Designation || '',
